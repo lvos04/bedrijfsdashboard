@@ -46,7 +46,7 @@ deelt een kleine, **alleen-lezen** set gegevens in een vast formaat, zodat het n
   | `milieu-registratie` | Instellingen → Koppelingen |
   | `gewichtsverwachting` | Beheer → Bedrijfskoppeling |
   | `scouten` | Beheer & instellingen → Koppelingen |
-  | `tuinwerk-os` | Beheer → Koppelsleutels |
+  | `tuinwerk-os` | Beheer → Integraties → Bedrijfskoppeling |
   | `bedrijfsdashboard` | Beheer → Koppelsleutels van dit dashboard |
 
   Een andere `403` (zonder deze foutcode) blijft een gewone fout ("Bron gaf HTTP 403").

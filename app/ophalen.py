@@ -35,7 +35,7 @@ SCHAKELAAR_LOCATIE = {
     "milieu-registratie": "Instellingen → Koppelingen",
     "gewichtsverwachting": "Beheer → Bedrijfskoppeling",
     "scouten": "Beheer & instellingen → Koppelingen",
-    "tuinwerk-os": "Beheer → Koppelsleutels",
+    "tuinwerk-os": "Beheer → Integraties → Bedrijfskoppeling",
     "bedrijfsdashboard": "Beheer → Koppelsleutels van dit dashboard",
 }
 
