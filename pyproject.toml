@@ -1,6 +1,6 @@
 [project]
 name = "bedrijfsdashboard"
-version = "0.2.0"
+version = "0.2.1"
 description = "Bedrijfsdashboard: één overzicht van alle bedrijfsapps via de Bedrijfskoppeling API v1"
 requires-python = ">=3.12"
 

@@ -47,6 +47,7 @@ deelt een kleine, **alleen-lezen** set gegevens in een vast formaat, zodat het n
   | `gewichtsverwachting` | Beheer → Bedrijfskoppeling |
   | `scouten` | Beheer & instellingen → Koppelingen |
   | `tuinwerk-os` | Beheer → Integraties → Bedrijfskoppeling |
+  | `priva-bridge` | Beheer → Bedrijfskoppeling |
   | `bedrijfsdashboard` | Beheer → Koppelsleutels van dit dashboard |
 
   Een andere `403` (zonder deze foutcode) blijft een gewone fout ("Bron gaf HTTP 403").
@@ -56,7 +57,7 @@ deelt een kleine, **alleen-lezen** set gegevens in een vast formaat, zodat het n
 ### `GET /api/koppeling/v1/info`
 ```json
 {
-  "app": "milieu-registratie",          // vaste slug: milieu-registratie | gewichtsverwachting | scouten | tuinwerk-os | bedrijfsdashboard
+  "app": "milieu-registratie",          // vaste slug: milieu-registratie | gewichtsverwachting | scouten | tuinwerk-os | priva-bridge | bedrijfsdashboard
   "naam": "Teeltregistratie OS",
   "versie": "0.4.2",                    // appversie
   "api_versie": "1",

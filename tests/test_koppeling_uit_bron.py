@@ -66,3 +66,14 @@ def test_andere_403_blijft_generiek(beheerder, app, met_nepbron):
     voeg_bron_toe(beheerder)
     met_nepbron.state.status = 403
     assert list(_haal(app).values())[0] == "Bron gaf HTTP 403"
+
+
+def test_alle_bekende_apps_hebben_een_schakelaarlocatie():
+    """Elke bekende app (ook de Priva Bridge) krijgt bij 403 een uitleg met de juiste plek van de schakelaar."""
+    from app.main import BEKENDE_APPS
+    from app.ophalen import SCHAKELAAR_LOCATIE
+
+    assert "priva-bridge" in BEKENDE_APPS
+    assert SCHAKELAAR_LOCATIE["priva-bridge"] == "Beheer → Bedrijfskoppeling"
+    for slug in BEKENDE_APPS:
+        assert SCHAKELAAR_LOCATIE.get(slug), slug

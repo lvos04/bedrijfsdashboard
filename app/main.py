@@ -48,6 +48,7 @@ BEKENDE_APPS = {
     "gewichtsverwachting": "Gewichtsverwachting",
     "scouten": "Scouten",
     "tuinwerk-os": "TuinWerk OS",
+    "priva-bridge": "Priva Bridge",
 }
 MELDINGEN = {
     "bron_opgeslagen": "Bron opgeslagen.",

@@ -1,5 +1,10 @@
 # Wijzigingen
 
+## 0.2.1 — 16 november 2026
+
+* Priva Bridge (`priva-bridge`) als bekende app; bij een uitgeschakelde koppeling wijst de uitleg naar
+  *Beheer → Bedrijfskoppeling* in de Bridge.
+
 ## 0.2.0 — 16 november 2026
 
 Alle nieuwe functies die het gedrag veranderen staan achter een instelling. Behalve de eigen koppel-API (zie

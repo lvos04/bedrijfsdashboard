@@ -9,6 +9,7 @@ en meldingen op bij:
 | Gewichtsverwachting | `gewichtsverwachting` |
 | Scouten | `scouten` |
 | TuinWerk OS | `tuinwerk-os` |
+| Priva Bridge | `priva-bridge` |
 
 Elke app die de [Bedrijfskoppeling API v1](docs/koppeling-api.md) aanbiedt kan als bron worden toegevoegd.
 
@@ -75,7 +76,7 @@ Voor elke app herhaalt u:
    met de naam `Bedrijfsdashboard`. Kopieer de sleutel (`bk_…`): hij wordt maar één keer getoond.
 2. **In het dashboard**: *Beheer → Bron toevoegen*:
    * **Naam**: zoals u de app wilt zien, bijv. `Scouten`.
-   * **App-slug**: kies uit de lijst (`milieu-registratie`, `gewichtsverwachting`, `scouten`, `tuinwerk-os`)
+   * **App-slug**: kies uit de lijst (`milieu-registratie`, `gewichtsverwachting`, `scouten`, `tuinwerk-os`, `priva-bridge`)
      of vul de slug van een andere app in.
    * **Basis-URL**: het adres waarop u de app opent, zonder pad, bijv. `http://192.168.1.10:30092`.
      Het dashboard voegt zelf `/api/koppeling/v1` toe.
