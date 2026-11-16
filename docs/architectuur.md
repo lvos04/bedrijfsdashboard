@@ -17,9 +17,28 @@
   halen op verzoek gegevens op bij de bron; de koppelsleutel verlaat de server nooit.
 * **Eigen koppel-API**: `/api/koppeling/v1/*` met eigen koppelsleutels (alleen SHA-256-hash opgeslagen), zie
   [koppeling-api.md](koppeling-api.md).
+* **Code**: `app/main.py` (app-fabriek, dashboard, datasets, tv), `app/routes_auth.py` (wizard, aanmelden, MFA,
+  account), `app/routes_beheer.py` (beheer), `app/web.py` (gedeelde hulpfuncties), `app/koppeling.py` (eigen
+  koppel-API), `app/ophalen.py`, `app/audit.py`, `app/mail.py`, `app/back_up.py`, `app/totp.py`,
+  `app/instellingen.py` (alle instellingen met standaardwaarden).
 * **Beveiliging**: argon2id-wachtwoordhashes (≥ 12 tekens), sessietoken in HTTP-only cookie (SameSite=Lax, Secure
-  bij https), CSRF-token per sessie op alle muterende routes plus Origin/Referer-controle, aanmeldbeperking
-  (5 mislukte pogingen per 15 minuten per IP en per gebruikersnaam), strikte Content-Security-Policy.
+  bij https), CSRF-token per sessie op alle muterende routes plus Origin/Referer-controle (optioneel strikt:
+  zonder beide headers geweigerd), strikte Content-Security-Policy, optionele TOTP-MFA (geheim versleuteld met
+  `geheim.key`, codes niet herbruikbaar) en optioneel *MFA verplicht voor beheerders*.
+* **Aanmeldbeperking**: 5 mislukte pogingen per 15 minuten per gebruikersnaam + IP, en 20 per gebruikersnaam in
+  totaal; nooit per IP alleen (achter een proxy delen gebruikers vaak één IP). De tellers staan in het geheugen
+  van het enige proces (prima voor één container; bij meerdere processen naar de database verplaatsen).
+* **Echt client-IP**: `X-Forwarded-For` wordt alleen gebruikt als de directe verbinding van een *vertrouwde proxy*
+  komt (instelling of `VERTROUWDE_PROXIES`; standaard `privé` = 127.0.0.0/8, 10/8, 172.16/12, 192.168/16, link-local
+  en IPv6-equivalenten). De lijst wordt van rechts naar links gelezen; het eerste niet-vertrouwde adres telt. Dat
+  werkt direct (geen header) en achter één reverse proxy op het LAN/de TrueNAS-host. Staat de proxy elders (publiek
+  IP), vul dan zijn adres in; `geen` negeert de header altijd.
+* **Auditlog**: tabel `audit_log` (tijd, gebruiker, actie, details als JSON zonder geheimen, IP). Een dagelijkse
+  opschoontaak in de ophaal-planner verwijdert verlopen sessies/MFA-uitdagingen en, alleen als er een bewaartermijn
+  is ingesteld, oude auditregels.
+* **Ophalen per bron**: de planner wordt wakker zodra de eerstvolgende bron aan de beurt is (eigen interval of het
+  globale) en haalt alleen die bronnen op. Na elke ronde worden nieuwe kritieke meldingen geregistreerd
+  (`gezien_meldingen`) en, als e-mail aan staat, één keer gemaild.
 
 ## Omgevingsvariabelen (allemaal optioneel)
 
@@ -31,3 +50,5 @@
 | `ACHTERGROND_OPHALEN` | `1` | `0` schakelt de periodieke ophaaltaak uit |
 | `LOG_LEVEL` | `INFO` | logniveau |
 | `TZ` | (UTC) | tijdzone voor weergave van tijden, bijv. `Europe/Amsterdam` |
+| `VERTROUWDE_PROXIES` | (instelling, standaard `privé`) | overschrijft *Beheer → Beveiliging → Vertrouwde proxy* |
+| `FORWARDED_ALLOW_IPS` | (niet gezet) | alleen voor het oude gedrag: laat uvicorn zelf `X-Forwarded-*` toepassen |

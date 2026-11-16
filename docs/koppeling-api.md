@@ -29,6 +29,28 @@ deelt een kleine, **alleen-lezen** set gegevens in een vast formaat, zodat het n
   frontend dat zonder grote ingreep toelaat; anders minstens API + CLI-commando + documentatie.
 * Rate limiting: als de app al een limiter heeft, toepassen (bijv. 120 verzoeken/min per sleutel).
 
+## Koppeling in- of uitschakelen (`403 koppeling_uitgeschakeld`)
+
+* Elke app heeft een instelling **"Bedrijfskoppeling ingeschakeld"**, **standaard uit**. Het sleutelbeheer blijft
+  zichtbaar, met de schakelaar erboven.
+* Staat de koppeling uit, dan geven **alle** `/api/koppeling/v1/*`-routes
+  `403 {"fout": "koppeling_uitgeschakeld"}` — ook met een geldige sleutel, zonder sleutel en bij ongeldige
+  parameters (de controle gebeurt vóór authenticatie en validatie).
+* Volgorde van controles: koppeling uit → `403`; geen/onbekende/ingetrokken sleutel → `401`; te veel verzoeken →
+  `429`; onbekende dataset → `404`; ongeldige parameters → `422`.
+* Een afnemer (zoals het Bedrijfsdashboard) behandelt deze 403 als "staat uit bij de bron" en niet als storing,
+  en toont de gebruiker waar de schakelaar staat:
+
+  | app (slug) | schakelaar staat onder |
+  |---|---|
+  | `milieu-registratie` | Instellingen → Koppelingen |
+  | `gewichtsverwachting` | Beheer → Bedrijfskoppeling |
+  | `scouten` | Beheer & instellingen → Koppelingen |
+  | `tuinwerk-os` | Beheer → Koppelsleutels |
+  | `bedrijfsdashboard` | Beheer → Koppelsleutels van dit dashboard |
+
+  Een andere `403` (zonder deze foutcode) blijft een gewone fout ("Bron gaf HTTP 403").
+
 ## Endpoints
 
 ### `GET /api/koppeling/v1/info`
@@ -88,12 +110,24 @@ andere apps het geaggregeerde bedrijfsoverzicht kunnen tonen.
 
 ### Koppelsleutels van het dashboard beheren
 
-* UI: *Beheer → Koppelsleutels van dit dashboard* (aanmaken, sleutel wordt één keer getoond, intrekken).
+* UI: *Beheer → Koppelsleutels van dit dashboard* (aanmaken, sleutel wordt één keer getoond, intrekken), met
+  daarboven de schakelaar **Bedrijfskoppeling ingeschakeld** (standaard uit; dan `403 koppeling_uitgeschakeld`).
+  Aanmaken/intrekken komt in het auditlog (zonder de sleutel zelf).
 * JSON (sessie-auth als beheerder + header `X-CSRF-Token`):
   * `GET    /api/beheer/koppelsleutels`
   * `POST   /api/beheer/koppelsleutels` `{"naam": "..."}` → `201` met eenmalig `sleutel`
   * `DELETE /api/beheer/koppelsleutels/{id}` → `204`
 * Rate limit: 120 verzoeken per minuut per sleutel (`429 {"fout": "te_veel_verzoeken"}`).
+* Staat *MFA verplicht voor beheerders* aan en heeft de beheerder geen MFA, dan geven deze routes
+  `403 {"fout": "mfa_vereist"}`.
+
+### Hoe het dashboard een uitgeschakelde bron toont
+
+Krijgt het dashboard bij het ophalen `403 {"fout": "koppeling_uitgeschakeld"}`, dan toont het bij die bron (overzicht,
+detailpagina, verbindingstest, tv-weergave) de uitleg *"Koppeling staat uit in &lt;naam&gt;: zet hem aan onder
+&lt;plek uit de tabel hierboven&gt; (schakelaar "Bedrijfskoppeling ingeschakeld")"* in plaats van "niet bereikbaar".
+De datasets-proxy `/api/bronnen/{id}/datasets/{naam}` geeft dan `502` met `{"fout": "<uitleg>",
+"code": "koppeling_uitgeschakeld"}`. De laatst bekende gegevens blijven zichtbaar als *verouderd*.
 
 ### KPI's in `/samenvatting`
 
