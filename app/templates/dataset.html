@@ -1,0 +1,25 @@
+{% extends "basis.html" %}
+{% block titel %}{{ naam }} · {{ bron.naam }} · Bedrijfsdashboard{% endblock %}
+{% block inhoud %}
+<p><a href="/bronnen/{{ bron.id }}">← {{ bron.naam }}</a></p>
+<h1>Dataset <code>{{ naam }}</code></h1>
+<form method="get" class="filter">
+  <label>Sinds <input type="datetime-local" name="sinds" value="{{ sinds_invoer }}"></label>
+  <label>Aantal <input type="number" name="limiet" min="1" max="500" value="{{ params.limiet }}"></label>
+  <button type="submit" class="knop knop-secundair">Toepassen</button>
+</form>
+{% if fout %}
+  <p class="bericht bericht-fout" role="alert">Ophalen mislukt: {{ fout }}</p>
+{% elif not rijen %}
+  <p class="gedempt">Geen gegevens.</p>
+{% else %}
+  <div class="tabel-wrap">
+  <table class="tabel">
+    <thead><tr>{% for k in kolommen %}<th scope="col">{{ k }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for r in rijen %}<tr>{% for c in r %}<td>{{ c }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+  </table>
+  </div>
+  <p class="gedempt">{{ rijen|length }} rij{{ '' if rijen|length == 1 else 'en' }}.
+  {% if volgende_cursor %}<a href="?limiet={{ params.limiet }}{% if params.sinds %}&amp;sinds={{ params.sinds|urlencode }}{% endif %}&amp;cursor={{ volgende_cursor|urlencode }}">Volgende pagina →</a>{% endif %}</p>
+{% endif %}
+{% endblock %}

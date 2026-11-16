@@ -1,0 +1,15 @@
+{% extends "basis.html" %}
+{% block titel %}Aanmelden · Bedrijfsdashboard{% endblock %}
+{% block inhoud %}
+<section class="kaart smal">
+  <h1>Aanmelden</h1>
+  <form method="post" action="/aanmelden" class="formulier">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Gebruikersnaam
+      <input name="gebruikersnaam" value="{{ gebruikersnaam or '' }}" required autocomplete="username" autofocus></label>
+    <label>Wachtwoord
+      <input type="password" name="wachtwoord" required autocomplete="current-password"></label>
+    <button type="submit" class="knop">Aanmelden</button>
+  </form>
+</section>
+{% endblock %}

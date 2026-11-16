@@ -1,0 +1,137 @@
+{% extends "basis.html" %}
+{% from "macros.html" import bron_status %}
+{% block titel %}Beheer · Bedrijfsdashboard{% endblock %}
+{% block inhoud %}
+<h1>Beheer</h1>
+
+{% if test %}
+<section class="kaart {{ 'kaart-ok' if test.ok else 'kaart-fout' }}" role="status" aria-live="polite">
+  <h2>Verbindingstest: {{ test.bron_naam }}</h2>
+  {% if test.ok %}
+    <p>Verbinding gelukt. {{ test.info.naam or test.info.app }} versie {{ test.info.versie or 'onbekend' }} (API {{ test.info.api_versie or '?' }}){% if test.info.bedrijf %}, {{ test.info.bedrijf }}{% endif %}.</p>
+    {% if test.info.datasets %}<p>Datasets: {{ test.info.datasets|join(', ') }}</p>{% endif %}
+    {% if test.waarschuwing %}<p class="bericht bericht-waarschuwing">{{ test.waarschuwing }}</p>{% endif %}
+  {% else %}
+    <p>Verbinding mislukt: {{ test.fout }}</p>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if nieuwe_sleutel %}
+<section class="kaart kaart-ok" role="status">
+  <h2>Nieuwe koppelsleutel "{{ nieuwe_sleutel.naam }}"</h2>
+  <p><strong>Kopieer deze sleutel nu.</strong> Hij wordt maar één keer getoond.</p>
+  <p class="sleutel"><code id="nieuwe-sleutel">{{ nieuwe_sleutel.sleutel }}</code>
+    <button type="button" class="knop knop-secundair" data-kopieer="nieuwe-sleutel">Kopiëren</button></p>
+</section>
+{% endif %}
+
+<section aria-labelledby="kop-bronnen" class="kaart">
+  <div class="sectiekop">
+    <h2 id="kop-bronnen">Bronnen</h2>
+    <div class="knoppenrij">
+      <a class="knop" href="/beheer/bronnen/nieuw">Bron toevoegen</a>
+      <form method="post" action="/beheer/ophalen" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="knop knop-secundair">Nu alles ophalen</button>
+      </form>
+    </div>
+  </div>
+  {% if bronnen %}
+  <div class="tabel-wrap">
+  <table class="tabel">
+    <thead><tr><th scope="col">Naam</th><th scope="col">App</th><th scope="col">Basis-URL</th><th scope="col">Sleutel</th><th scope="col">Status</th><th scope="col">Acties</th></tr></thead>
+    <tbody>
+    {% for b in bronnen %}
+    <tr>
+      <th scope="row"><a href="/bronnen/{{ b.id }}">{{ b.naam }}</a>{% if not b.actief %} <span class="badge status-onbekend">inactief</span>{% endif %}</th>
+      <td><code>{{ b.app_slug }}</code></td>
+      <td class="breek">{{ b.basis_url }}{% if b.heeft_ca %} <span class="badge status-onbekend">eigen CA</span>{% endif %}</td>
+      <td><code>{{ b.sleutel_voorvoegsel }}…</code></td>
+      <td>{{ bron_status(b) }}</td>
+      <td class="acties">
+        <form method="post" action="/beheer/bronnen/{{ b.id }}/testen" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="knop knop-secundair">Verbinding testen</button>
+        </form>
+        <a class="knop knop-secundair" href="/beheer/bronnen/{{ b.id }}">Bewerken</a>
+        <form method="post" action="/beheer/bronnen/{{ b.id }}/verwijderen" class="inline" data-bevestig="Bron '{{ b.naam }}' en de opgeslagen historie verwijderen?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="knop knop-gevaar">Verwijderen</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="gedempt">Nog geen bronnen.</p>{% endif %}
+</section>
+
+<section aria-labelledby="kop-inst" class="kaart">
+  <h2 id="kop-inst">Instellingen</h2>
+  <form method="post" action="/beheer/instellingen" class="formulier formulier-rij">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Bedrijfsnaam <input name="bedrijfsnaam" value="{{ bedrijfsnaam }}" maxlength="200"></label>
+    <label>Ophaalinterval (minuten) <input type="number" name="interval_minuten" min="1" max="1440" value="{{ interval }}" required></label>
+    <label>Historie bewaren (dagen) <input type="number" name="historie_dagen" min="1" max="3650" value="{{ historie_dagen }}" required></label>
+    <button type="submit" class="knop">Opslaan</button>
+  </form>
+</section>
+
+<section aria-labelledby="kop-gebr" class="kaart">
+  <h2 id="kop-gebr">Gebruikers</h2>
+  <div class="tabel-wrap">
+  <table class="tabel">
+    <thead><tr><th scope="col">Gebruikersnaam</th><th scope="col">Rol</th><th scope="col">Aangemaakt</th><th scope="col">Acties</th></tr></thead>
+    <tbody>
+    {% for g in gebruikers %}
+    <tr><th scope="row">{{ g.gebruikersnaam }}</th><td>{{ g.rol }}</td><td>{{ leesbaar(g.aangemaakt_op) }}</td>
+      <td>{% if g.id != gebruiker.id %}
+        <form method="post" action="/beheer/gebruikers/{{ g.id }}/verwijderen" class="inline" data-bevestig="Gebruiker '{{ g.gebruikersnaam }}' verwijderen?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="knop knop-gevaar">Verwijderen</button>
+        </form>{% else %}<span class="gedempt">(uzelf)</span>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <h3>Gebruiker toevoegen</h3>
+  <form method="post" action="/beheer/gebruikers" class="formulier formulier-rij">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Gebruikersnaam <input name="gebruikersnaam" required maxlength="64" autocomplete="off"></label>
+    <label>Wachtwoord (min. 12) <input type="password" name="wachtwoord" required minlength="12" autocomplete="new-password"></label>
+    <label>Rol <select name="rol"><option value="lezer">Lezer</option><option value="beheerder">Beheerder</option></select></label>
+    <button type="submit" class="knop">Toevoegen</button>
+  </form>
+</section>
+
+<section aria-labelledby="kop-ks" class="kaart">
+  <h2 id="kop-ks">Koppelsleutels van dit dashboard</h2>
+  <p class="gedempt">Hiermee kunnen andere apps het geaggregeerde overzicht ophalen via <code>/api/koppeling/v1</code> (slug <code>bedrijfsdashboard</code>).</p>
+  {% if koppelsleutels %}
+  <div class="tabel-wrap">
+  <table class="tabel">
+    <thead><tr><th scope="col">Naam</th><th scope="col">Voorvoegsel</th><th scope="col">Aangemaakt</th><th scope="col">Laatst gebruikt</th><th scope="col">Status</th></tr></thead>
+    <tbody>
+    {% for s in koppelsleutels %}
+    <tr><th scope="row">{{ s.naam }}</th><td><code>{{ s.voorvoegsel }}…</code></td>
+      <td>{{ leesbaar(s.aangemaakt_op) }}{% if s.aangemaakt_door %} door {{ s.aangemaakt_door }}{% endif %}</td>
+      <td>{{ leesbaar(s.laatst_gebruikt_op) if s.laatst_gebruikt_op else 'nooit' }}</td>
+      <td>{% if s.ingetrokken_op %}Ingetrokken {{ leesbaar(s.ingetrokken_op) }}{% else %}
+        <form method="post" action="/beheer/koppelsleutels/{{ s.id }}/intrekken" class="inline" data-bevestig="Koppelsleutel '{{ s.naam }}' intrekken?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="knop knop-gevaar">Intrekken</button>
+        </form>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+  <form method="post" action="/beheer/koppelsleutels" class="formulier formulier-rij">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Naam <input name="naam" required maxlength="100" placeholder="bijv. TuinWerk OS"></label>
+    <button type="submit" class="knop">Sleutel aanmaken</button>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{% block titel %}Bedrijfsdashboard{% endblock %}</title>
+  <link rel="stylesheet" href="/static/stijl.css?v={{ versie }}">
+  <script src="/static/app.js?v={{ versie }}" defer></script>
+</head>
+<body>
+<a class="sla-over" href="#inhoud">Naar inhoud</a>
+<header class="kop">
+  <a class="merk" href="/">Bedrijfsdashboard</a>
+  {% if gebruiker %}
+  <nav aria-label="Hoofdmenu">
+    <a href="/">Overzicht</a>
+    {% if gebruiker.rol == 'beheerder' %}<a href="/beheer">Beheer</a>{% endif %}
+    <form method="post" action="/afmelden" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="link">Afmelden ({{ gebruiker.gebruikersnaam }})</button>
+    </form>
+  </nav>
+  {% endif %}
+</header>
+<main id="inhoud">
+  {% if melding %}<p class="bericht bericht-ok" role="status">{{ melding }}</p>{% endif %}
+  {% if fout %}<p class="bericht bericht-fout" role="alert">{{ fout }}</p>{% endif %}
+  {% block inhoud %}{% endblock %}
+</main>
+<footer class="voet">Bedrijfsdashboard {{ versie }}</footer>
+</body>
+</html>

@@ -1,0 +1,63 @@
+{% extends "basis.html" %}
+{% from "macros.html" import kpi_waarde, status_badge, niveau_badge, bron_status %}
+{% block titel %}{{ bron.naam }} · Bedrijfsdashboard{% endblock %}
+{% block inhoud %}
+<p><a href="/">← Overzicht</a></p>
+<div class="paginakop">
+  <h1>{{ bron.naam }}</h1>
+  <p>{{ bron_status(bron) }}</p>
+  <p class="gedempt">
+    App: <code>{{ bron.app_slug }}</code>
+    {% if bron.info %} · {{ bron.info.naam or '' }} versie {{ bron.info.versie or 'onbekend' }} · API {{ bron.info.api_versie or '?' }}{% endif %}
+    · <a href="{{ bron.basis_url }}" target="_blank" rel="noopener noreferrer">Open app ↗</a>
+    {% if gebruiker.rol == 'beheerder' %} · <a href="/beheer/bronnen/{{ bron.id }}">Bewerken</a>{% endif %}
+  </p>
+</div>
+
+<section aria-labelledby="kop-kpis">
+  <h2 id="kop-kpis">KPI's en trend ({{ dagen }} dagen)</h2>
+  {% if bron.samenvatting and bron.samenvatting.kpis %}
+  <div class="tabel-wrap">
+  <table class="tabel kpi-tabel">
+    <thead><tr><th scope="col">KPI</th><th scope="col">Waarde</th><th scope="col">Status</th><th scope="col">Trend</th><th scope="col">Toelichting</th></tr></thead>
+    <tbody>
+    {% for k in bron.samenvatting.kpis %}
+      <tr class="kpi-{{ k.status }}">
+        <th scope="row">{{ k.label }}</th>
+        <td class="getal">{{ kpi_waarde(k) }}</td>
+        <td>{{ status_badge(k.status) }}</td>
+        <td class="trend kleur-{{ k.status }}">{{ sparklines.get(k.sleutel, '') }}</td>
+        <td>{{ k.toelichting or '' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if bron.verouderd %}<p class="bericht bericht-waarschuwing">Deze gegevens zijn verouderd: het laatste ophalen is mislukt of te lang geleden.</p>{% endif %}
+  {% else %}
+  <p class="gedempt">Nog geen gegevens opgehaald.</p>
+  {% endif %}
+</section>
+
+<section aria-labelledby="kop-meld">
+  <h2 id="kop-meld">Meldingen</h2>
+  {% if meldingen %}
+  <ul class="meldingenlijst">
+    {% for m in meldingen %}
+    <li class="melding melding-{{ m.niveau }}">{{ niveau_badge(m.niveau) }}
+      <span>{{ m.tekst }}{% if m.sinds %} <span class="gedempt">(sinds {{ leesbaar(m.sinds) }})</span>{% endif %}</span></li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="gedempt">Geen meldingen.</p>{% endif %}
+</section>
+
+<section aria-labelledby="kop-ds">
+  <h2 id="kop-ds">Datasets</h2>
+  {% if bron.info and bron.info.datasets %}
+  <ul class="knoppenrij">
+    {% for d in bron.info.datasets %}<li><a class="knop knop-secundair" href="/bronnen/{{ bron.id }}/datasets/{{ d }}">{{ d }}</a></li>{% endfor %}
+  </ul>
+  <p class="gedempt">De gegevens worden op verzoek via het dashboard opgehaald; de koppelsleutel verlaat de server niet.</p>
+  {% else %}<p class="gedempt">Deze bron biedt (nog) geen datasets aan.</p>{% endif %}
+</section>
+{% endblock %}

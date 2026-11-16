@@ -1,0 +1,20 @@
+{% extends "basis.html" %}
+{% block titel %}Welkom · Bedrijfsdashboard{% endblock %}
+{% block inhoud %}
+<section class="kaart smal">
+  <h1>Welkom bij het Bedrijfsdashboard</h1>
+  <p>Er is nog geen account. Maak hieronder de eerste <strong>beheerder</strong> aan. Daarna koppelt u de bedrijfsapps onder Beheer.</p>
+  <form method="post" action="/welkom" class="formulier">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Bedrijfsnaam (optioneel)
+      <input name="bedrijfsnaam" value="{{ bedrijfsnaam or '' }}" maxlength="200" autocomplete="organization"></label>
+    <label>Gebruikersnaam
+      <input name="gebruikersnaam" value="{{ gebruikersnaam or '' }}" required maxlength="64" autocomplete="username"></label>
+    <label>Wachtwoord (minimaal 12 tekens)
+      <input type="password" name="wachtwoord" required minlength="12" autocomplete="new-password"></label>
+    <label>Herhaal wachtwoord
+      <input type="password" name="wachtwoord2" required minlength="12" autocomplete="new-password"></label>
+    <button type="submit" class="knop">Beheerder aanmaken</button>
+  </form>
+</section>
+{% endblock %}

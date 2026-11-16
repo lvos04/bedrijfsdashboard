@@ -1,0 +1,86 @@
+{% extends "basis.html" %}
+{% from "macros.html" import kpi_waarde, status_badge, niveau_badge, bron_status %}
+{% block titel %}Overzicht · Bedrijfsdashboard{% endblock %}
+{% block inhoud %}
+<div class="paginakop">
+  <h1>{{ bedrijfsnaam or 'Bedrijfsoverzicht' }}</h1>
+  <p class="gedempt">Gegevens worden elke {{ interval }} minuten opgehaald.</p>
+</div>
+
+<section aria-labelledby="kop-meldingen" class="meldingen-blok">
+  <h2 id="kop-meldingen">Meldingen</h2>
+  {% if not kritiek and not onbereikbaar %}
+    <p class="bericht bericht-ok">Geen kritieke meldingen{% if bronnen %} en alle apps zijn bereikbaar{% endif %}.</p>
+  {% endif %}
+  {% if onbereikbaar %}
+  <ul class="meldingenlijst">
+    {% for b in onbereikbaar %}
+    <li class="melding melding-onbereikbaar">
+      <span class="badge niveau-kritiek">Niet bereikbaar</span>
+      <span><a href="/bronnen/{{ b.id }}">{{ b.naam }}</a> is niet bereikbaar sinds {{ leesbaar(b.fout_sinds) }}.</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if kritiek %}
+  <ul class="meldingenlijst">
+    {% for m in kritiek %}
+    <li class="melding melding-kritiek">
+      {{ niveau_badge(m.niveau) }}
+      <span><a href="/bronnen/{{ m.bron_id }}">{{ m.bron_naam }}</a>: {{ m.tekst }}
+        {% if m.sinds %}<span class="gedempt">(sinds {{ leesbaar(m.sinds) }})</span>{% endif %}
+        {% if m.verouderd %}<span class="badge verouderd">verouderd</span>{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if waarschuwingen or info_meldingen %}
+  <details class="overige-meldingen">
+    <summary>{{ waarschuwingen|length }} waarschuwing{{ '' if waarschuwingen|length == 1 else 'en' }} en {{ info_meldingen|length }} info-melding{{ '' if info_meldingen|length == 1 else 'en' }}</summary>
+    <ul class="meldingenlijst">
+      {% for m in waarschuwingen + info_meldingen %}
+      <li class="melding">
+        {{ niveau_badge(m.niveau) }}
+        <span><a href="/bronnen/{{ m.bron_id }}">{{ m.bron_naam }}</a>: {{ m.tekst }}
+          {% if m.sinds %}<span class="gedempt">(sinds {{ leesbaar(m.sinds) }})</span>{% endif %}
+          {% if m.verouderd %}<span class="badge verouderd">verouderd</span>{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+</section>
+
+<section aria-labelledby="kop-apps">
+  <h2 id="kop-apps">Apps</h2>
+  {% if not bronnen %}
+    <p class="kaart">Er zijn nog geen apps gekoppeld.
+      {% if gebruiker.rol == 'beheerder' %}<a href="/beheer/bronnen/nieuw">Voeg de eerste bron toe</a>.{% else %}Vraag een beheerder om bronnen toe te voegen.{% endif %}</p>
+  {% endif %}
+  <div class="tegels">
+    {% for b in bronnen %}
+    <article class="tegel{% if b.fout %} tegel-fout{% endif %}{% if b.verouderd %} tegel-verouderd{% endif %}" aria-labelledby="tegel-{{ b.id }}">
+      <header class="tegel-kop">
+        <h3 id="tegel-{{ b.id }}"><a href="/bronnen/{{ b.id }}">{{ b.naam }}</a></h3>
+        <a class="extern" href="{{ b.basis_url }}" target="_blank" rel="noopener noreferrer">Open app <span aria-hidden="true">↗</span></a>
+      </header>
+      <p class="tegel-status">{{ bron_status(b) }}</p>
+      {% if b.samenvatting and b.samenvatting.kpis %}
+      <ul class="kpis{% if b.verouderd %} verouderd-inhoud{% endif %}">
+        {% for k in b.samenvatting.kpis %}
+        <li class="kpi kpi-{{ k.status }}">
+          <span class="kpi-label">{{ k.label }}</span>
+          <span class="kpi-waarde">{{ kpi_waarde(k) }}</span>
+          {{ status_badge(k.status) }}
+          {% if k.toelichting %}<span class="kpi-toelichting">{{ k.toelichting }}</span>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% elif not b.nooit_opgehaald %}
+      <p class="gedempt">Geen KPI's beschikbaar.</p>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

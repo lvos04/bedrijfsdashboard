@@ -1,0 +1,21 @@
+{% macro kpi_waarde(k) -%}
+{%- if k.waarde is not none -%}{{ getal(k.waarde) }}{% if k.eenheid %} <span class="eenheid">{{ k.eenheid }}</span>{% endif %}
+{%- elif k.waarde_tekst -%}{{ k.waarde_tekst }}
+{%- else -%}<span class="geen-waarde" title="Geen waarde beschikbaar">–</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro status_badge(status) -%}
+<span class="badge status-{{ status }}">{{ status_label.get(status, 'Onbekend') }}</span>
+{%- endmacro %}
+
+{% macro niveau_badge(niveau) -%}
+<span class="badge niveau-{{ niveau }}">{{ {'kritiek': 'Kritiek', 'waarschuwing': 'Waarschuwing', 'info': 'Info'}.get(niveau, niveau) }}</span>
+{%- endmacro %}
+
+{% macro bron_status(b) -%}
+{% if b.nooit_opgehaald %}<span class="status-regel">Nog niet opgehaald</span>
+{% elif b.fout %}<span class="status-regel status-fout" role="status">Niet bereikbaar sinds {{ leesbaar(b.fout_sinds) }}: {{ b.fout }}</span>
+{% if b.laatste_succes %}<span class="status-regel">Laatste gegevens van {{ leesbaar(b.laatste_succes) }} <span class="badge verouderd">verouderd</span></span>{% endif %}
+{% else %}<span class="status-regel">Bijgewerkt {{ leesbaar(b.laatste_succes) }}{% if b.verouderd %} <span class="badge verouderd">verouderd</span>{% endif %}</span>
+{% endif %}
+{%- endmacro %}
