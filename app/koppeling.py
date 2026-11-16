@@ -8,10 +8,10 @@ import threading
 import time
 from collections import deque
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
-from . import __version__, overzicht
+from . import __version__, instellingen, overzicht
 from .beveiliging import sha256
 from .tijd import iso, parse_iso
 
@@ -70,7 +70,17 @@ class _Limiter:
 _ONGELDIG = {"fout": "ongeldige_koppelsleutel"}
 
 
+_UITGESCHAKELD = {"fout": "koppeling_uitgeschakeld"}
+
+
+def ingeschakeld(db) -> bool:
+    return instellingen.aan(db, "koppeling_ingeschakeld")
+
+
 def _authenticeer(request: Request) -> int | JSONResponse:
+    # Staat de koppeling uit (standaard), dan weigeren we alles, ook met een geldige sleutel.
+    if not ingeschakeld(request.app.state.db):
+        return JSONResponse(_UITGESCHAKELD, status_code=403)
     kop = request.headers.get("authorization", "")
     soort, _, sleutel = kop.partition(" ")
     if soort.lower() != "bearer" or not sleutel.strip():
@@ -228,7 +238,14 @@ def _offset_naar_cursor(offset: int) -> str:
 
 # ---------------------------------------------------------------- routes
 
-router = APIRouter(prefix="/api/koppeling/v1")
+
+def _vereis_ingeschakeld(request: Request) -> None:
+    """Router-afhankelijkheid: draait vóór de validatie van queryparameters, zodat ook ongeldige verzoeken 403 geven."""
+    if not ingeschakeld(request.app.state.db):
+        raise HTTPException(403, _UITGESCHAKELD["fout"])
+
+
+router = APIRouter(prefix="/api/koppeling/v1", dependencies=[Depends(_vereis_ingeschakeld)])
 
 
 @router.get("/info")

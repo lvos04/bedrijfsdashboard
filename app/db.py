@@ -68,6 +68,38 @@ MIGRATIES: list[str] = [
         ingetrokken_op TEXT
     );
     """,
+    # 2: auditlog, MFA, per-bron interval, ontdubbeling van e-mailmeldingen (0.2.0)
+    """
+    CREATE TABLE audit_log (
+        id INTEGER PRIMARY KEY,
+        tijd TEXT NOT NULL,
+        gebruiker TEXT,
+        actie TEXT NOT NULL,
+        details TEXT,
+        ip TEXT
+    );
+    CREATE INDEX idx_audit_tijd ON audit_log (tijd);
+    ALTER TABLE gebruikers ADD COLUMN totp_geheim BLOB;
+    ALTER TABLE gebruikers ADD COLUMN totp_nieuw BLOB;
+    ALTER TABLE gebruikers ADD COLUMN totp_laatste_stap INTEGER;
+    CREATE TABLE mfa_uitdagingen (
+        token_hash TEXT PRIMARY KEY,
+        gebruiker_id INTEGER NOT NULL REFERENCES gebruikers(id) ON DELETE CASCADE,
+        verloopt_op TEXT NOT NULL,
+        pogingen INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX idx_sessies_verloopt ON sessies (verloopt_op);
+    CREATE INDEX idx_sessies_gebruiker ON sessies (gebruiker_id);
+    ALTER TABLE bronnen ADD COLUMN interval_minuten INTEGER;
+    ALTER TABLE bronnen ADD COLUMN verouderd_na_minuten INTEGER;
+    ALTER TABLE bron_status ADD COLUMN fout_code TEXT;
+    CREATE TABLE gezien_meldingen (
+        hash TEXT PRIMARY KEY,
+        bron_id INTEGER NOT NULL REFERENCES bronnen(id) ON DELETE CASCADE,
+        eerst_gezien TEXT NOT NULL,
+        laatst_gezien TEXT NOT NULL
+    );
+    """,
 ]
 
 

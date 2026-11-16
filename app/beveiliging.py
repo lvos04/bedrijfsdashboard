@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import secrets
 import threading
 import time
@@ -62,7 +63,8 @@ def haal_sessie(conn, token: str | None):
     if not token:
         return None
     rij = conn.execute(
-        "SELECT s.token_hash, s.csrf_token, s.verloopt_op, g.id, g.gebruikersnaam, g.rol "
+        "SELECT s.token_hash, s.csrf_token, s.verloopt_op, g.id, g.gebruikersnaam, g.rol, "
+        "g.totp_geheim IS NOT NULL AS mfa_actief "
         "FROM sessies s JOIN gebruikers g ON g.id = s.gebruiker_id WHERE s.token_hash = ?",
         (sha256(token),),
     ).fetchone()
@@ -75,6 +77,13 @@ def haal_sessie(conn, token: str | None):
     return rij
 
 
+def ruim_verlopen_op(conn) -> int:
+    """Verlopen sessies en MFA-uitdagingen verwijderen (dagelijkse opschoontaak)."""
+    n = conn.execute("DELETE FROM sessies WHERE verloopt_op < ?", (iso(),)).rowcount
+    n += conn.execute("DELETE FROM mfa_uitdagingen WHERE verloopt_op < ?", (iso(),)).rowcount
+    return n
+
+
 def verwijder_sessie(conn, token: str | None) -> None:
     if token:
         conn.execute("DELETE FROM sessies WHERE token_hash = ?", (sha256(token),))
@@ -85,12 +94,15 @@ def is_https(request: Request) -> bool:
     return request.url.scheme == "https" or proto == "https"
 
 
-def oorsprong_ok(request: Request) -> bool:
-    """Muterende verzoeken moeten van dezelfde host komen (Origin, anders Referer)."""
+def oorsprong_ok(request: Request, strikt: bool = False) -> bool:
+    """Muterende verzoeken moeten van dezelfde host komen (Origin, anders Referer).
+
+    Standaard (niet strikt) wordt een verzoek zonder Origin én zonder Referer toegelaten en vertrouwen we dan alleen
+    op het CSRF-token. Met ``strikt`` (instelling "Strikte oorsprongcontrole") wordt zo'n verzoek geweigerd.
+    """
     bron = request.headers.get("origin") or request.headers.get("referer")
     if not bron:
-        # Browsers sturen bij POST altijd Origin; ontbreekt die, dan vertrouwen we alleen het CSRF-token.
-        return True
+        return not strikt
     if bron == "null":
         return False
     host_bron = urlsplit(bron).netloc.lower()
@@ -106,31 +118,86 @@ def csrf_ok(verwacht: str, gegeven: str | None) -> bool:
 
 
 class AanmeldBeperking:
-    """Eenvoudige in-geheugen beperking: max N mislukte pogingen per venster per IP en per gebruikersnaam."""
+    """In-geheugen aanmeldbeperking per account + echt IP-adres (zie `client_ip`).
 
-    def __init__(self, max_pogingen: int = 5, venster_s: int = 900):
-        self.max = max_pogingen
+    * max ``per_account_ip`` mislukte pogingen per venster voor dezelfde gebruikersnaam vanaf hetzelfde IP;
+    * daarnaast max ``per_account`` mislukte pogingen per venster voor een gebruikersnaam vanaf alle IP's samen
+      (vangnet tegen het rouleren of vervalsen van IP-adressen).
+
+    Er is bewust geen blokkade per IP alleen: achter een proxy of tunnel delen alle gebruikers vaak één IP, en
+    dan zou één persoon met een fout wachtwoord iedereen buitensluiten. De tellers staan in het geheugen van het
+    (enige) proces en beginnen na een herstart opnieuw.
+    """
+
+    def __init__(self, per_account_ip: int = 5, per_account: int = 20, venster_s: int = 900):
+        self.per_account_ip = per_account_ip
+        self.per_account = per_account
         self.venster = venster_s
         self._fouten: dict[str, list[float]] = {}
         self._lock = threading.Lock()
 
+    @staticmethod
+    def _sleutels(naam: str, ip: str) -> tuple[str, str]:
+        naam = (naam or "").strip().lower()
+        return f"acc-ip:{naam}|{ip}", f"acc:{naam}"
+
     def _schoon(self, sleutel: str, t: float) -> list[float]:
         lijst = [x for x in self._fouten.get(sleutel, []) if t - x < self.venster]
-        self._fouten[sleutel] = lijst
+        if lijst:
+            self._fouten[sleutel] = lijst
+        else:
+            self._fouten.pop(sleutel, None)
         return lijst
 
-    def geblokkeerd(self, *sleutels: str) -> bool:
+    def geblokkeerd(self, naam: str, ip: str) -> bool:
+        t = time.monotonic()
+        combi, acc = self._sleutels(naam, ip)
+        with self._lock:
+            return len(self._schoon(combi, t)) >= self.per_account_ip or len(self._schoon(acc, t)) >= self.per_account
+
+    def fout(self, naam: str, ip: str) -> None:
         t = time.monotonic()
         with self._lock:
-            return any(len(self._schoon(s, t)) >= self.max for s in sleutels)
+            for s in self._sleutels(naam, ip):
+                self._fouten.setdefault(s, []).append(t)
 
-    def fout(self, *sleutels: str) -> None:
-        t = time.monotonic()
+    def reset(self, naam: str, ip: str) -> None:
         with self._lock:
-            for s in sleutels:
-                self._schoon(s, t).append(t)
-
-    def reset(self, *sleutels: str) -> None:
-        with self._lock:
-            for s in sleutels:
+            for s in self._sleutels(naam, ip):
                 self._fouten.pop(s, None)
+
+    def opruimen(self) -> None:
+        t = time.monotonic()
+        with self._lock:
+            for s in list(self._fouten):
+                self._schoon(s, t)
+
+
+def client_ip(request: Request, vertrouwd: list) -> str:
+    """Het echte IP van de gebruiker.
+
+    `X-Forwarded-For` wordt alleen gebruikt als het directe verbindings-IP een vertrouwde proxy is. Dan lopen we
+    de lijst van rechts naar links af en nemen het eerste adres dat zelf geen vertrouwde proxy is.
+    """
+    peer = request.client.host if request.client else ""
+    try:
+        peer_ip = ipaddress.ip_address(peer)
+    except ValueError:
+        return peer or "onbekend"
+
+    def vertrouwd_ip(adres) -> bool:
+        return any(adres.version == n.version and adres in n for n in vertrouwd)
+
+    if not vertrouwd or not vertrouwd_ip(peer_ip):
+        return str(peer_ip)
+    kop = request.headers.get("x-forwarded-for", "")
+    kandidaten = []
+    for deel in kop.split(","):
+        try:
+            kandidaten.append(ipaddress.ip_address(deel.strip()))
+        except ValueError:
+            continue
+    for adres in reversed(kandidaten):
+        if not vertrouwd_ip(adres):
+            return str(adres)
+    return str(kandidaten[0]) if kandidaten else str(peer_ip)

@@ -144,8 +144,8 @@ def test_planner_draait_in_achtergrond(tmp_path, nepbron):
     transport = httpx.ASGITransport(app=nepbron)
     origineel = oph.haal_alle_op
 
-    async def met_transport(db, kluis, transport_=None):
-        return await origineel(db, kluis, transport)
+    async def met_transport(db, kluis, transport_=None, **kw):
+        return await origineel(db, kluis, transport, **kw)
 
     oph.haal_alle_op = met_transport
     try:

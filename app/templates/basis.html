@@ -16,6 +16,7 @@
   <nav aria-label="Hoofdmenu">
     <a href="/">Overzicht</a>
     {% if gebruiker.rol == 'beheerder' %}<a href="/beheer">Beheer</a>{% endif %}
+    <a href="/account">Account</a>
     <form method="post" action="/afmelden" class="inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="link">Afmelden ({{ gebruiker.gebruikersnaam }})</button>
@@ -24,6 +25,7 @@
   {% endif %}
 </header>
 <main id="inhoud">
+  {% if mfa_ontbreekt %}<p class="bericht bericht-waarschuwing" role="alert">MFA is verplicht voor beheerders. <a href="/account">Stel MFA in</a> om Beheer te kunnen gebruiken.</p>{% endif %}
   {% if melding %}<p class="bericht bericht-ok" role="status">{{ melding }}</p>{% endif %}
   {% if fout %}<p class="bericht bericht-fout" role="alert">{{ fout }}</p>{% endif %}
   {% block inhoud %}{% endblock %}

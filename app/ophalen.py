@@ -28,12 +28,34 @@ STANDAARD_INTERVAL_MIN = 5
 STANDAARD_HISTORIE_DAGEN = 90
 
 
+KOPPELING_UIT = "koppeling_uitgeschakeld"
+
+# Waar de schakelaar "Bedrijfskoppeling ingeschakeld" in elke app staat (voor een duidelijke uitleg bij 403).
+SCHAKELAAR_LOCATIE = {
+    "milieu-registratie": "Instellingen → Koppelingen",
+    "gewichtsverwachting": "Beheer → Bedrijfskoppeling",
+    "scouten": "Beheer & instellingen → Koppelingen",
+    "tuinwerk-os": "Beheer → Koppelsleutels",
+    "bedrijfsdashboard": "Beheer → Koppelsleutels van dit dashboard",
+}
+
+
 class OphaalFout(Exception):
-    def __init__(self, tekst: str, status_code: int | None = None, data: Any = None):
+    def __init__(self, tekst: str, status_code: int | None = None, data: Any = None, code: str | None = None):
         super().__init__(tekst)
         self.tekst = tekst
         self.status_code = status_code
         self.data = data
+        self.code = code
+
+
+def uitleg_koppeling_uit(bron) -> str:
+    naam = bron["naam"] if bron is not None else "de bron-app"
+    plek = SCHAKELAAR_LOCATIE.get(bron["app_slug"] if bron is not None else "", "het beheer van koppelsleutels")
+    return (
+        f"Koppeling staat uit in {naam}: zet hem aan onder {plek} "
+        '(schakelaar "Bedrijfskoppeling ingeschakeld") en klik daarna op Verbinding testen.'
+    )
 
 
 # ---------------------------------------------------------------- normaliseren
@@ -139,7 +161,7 @@ def maak_client(
     )
 
 
-async def _get_json(client: httpx.AsyncClient, pad: str, params: dict | None = None) -> Any:
+async def _get_json(client: httpx.AsyncClient, pad: str, params: dict | None = None, bron=None) -> Any:
     try:
         resp = await client.get(pad, params=params)
     except httpx.TimeoutException:
@@ -162,6 +184,8 @@ async def _get_json(client: httpx.AsyncClient, pad: str, params: dict | None = N
         if fout == "onbekende_dataset":
             raise OphaalFout("Onbekende dataset (404)", 404, data)
         raise OphaalFout("Koppel-API niet gevonden (404): ondersteunt de app Bedrijfskoppeling API v1?", 404, data)
+    if resp.status_code == 403 and isinstance(data, dict) and data.get("fout") == KOPPELING_UIT:
+        raise OphaalFout(uitleg_koppeling_uit(bron), 403, data, code=KOPPELING_UIT)
     if resp.status_code == 422:
         raise OphaalFout("Ongeldige parameters (422)", 422, data)
     if resp.status_code >= 400:
@@ -173,14 +197,14 @@ async def _get_json(client: httpx.AsyncClient, pad: str, params: dict | None = N
 
 async def test_verbinding(bron, kluis: Kluis, transport=None) -> dict:
     async with maak_client(bron, kluis, transport) as client:
-        return normaliseer_info(await _get_json(client, "/info"))
+        return normaliseer_info(await _get_json(client, "/info", bron=bron))
 
 
 async def haal_dataset(bron, kluis: Kluis, naam: str, params: dict, transport=None) -> dict:
     if not DATASET_NAAM.match(naam):
         raise OphaalFout("Ongeldige datasetnaam", 422)
     async with maak_client(bron, kluis, transport) as client:
-        data = await _get_json(client, f"/datasets/{naam}", params=params)
+        data = await _get_json(client, f"/datasets/{naam}", params=params, bron=bron)
     if not isinstance(data, dict) or not isinstance(data.get("items"), list):
         raise OphaalFout("Ongeldig antwoord van dataset")
     return data
@@ -196,10 +220,10 @@ async def haal_bron_op(
     tijdstip = iso()
     try:
         async with maak_client(bron, kluis, transport, timeout) as client:
-            info = normaliseer_info(await _get_json(client, "/info"))
-            samenvatting = normaliseer_samenvatting(await _get_json(client, "/samenvatting"))
+            info = normaliseer_info(await _get_json(client, "/info", bron=bron))
+            samenvatting = normaliseer_samenvatting(await _get_json(client, "/samenvatting", bron=bron))
     except OphaalFout as exc:
-        _sla_fout_op(db, bron["id"], tijdstip, exc.tekst)
+        _sla_fout_op(db, bron["id"], tijdstip, exc.tekst, exc.code)
         return exc.tekst
     except Exception as exc:  # onverwacht, bijv. ontsleutelfout of ongeldige CA
         log.exception("Onverwachte fout bij ophalen bron %s", bron["id"])
@@ -212,7 +236,7 @@ async def haal_bron_op(
             "INSERT INTO bron_status (bron_id, laatste_poging, laatste_succes, fout, fout_sinds, info_json, "
             "samenvatting_json) VALUES (?, ?, ?, NULL, NULL, ?, ?) ON CONFLICT(bron_id) DO UPDATE SET "
             "laatste_poging = excluded.laatste_poging, laatste_succes = excluded.laatste_succes, fout = NULL, "
-            "fout_sinds = NULL, info_json = excluded.info_json, samenvatting_json = excluded.samenvatting_json",
+            "fout_code = NULL, fout_sinds = NULL, info_json = excluded.info_json, samenvatting_json = excluded.samenvatting_json",
             (bron["id"], tijdstip, tijdstip, json.dumps(info), json.dumps(samenvatting)),
         )
         for kpi in samenvatting["kpis"]:
@@ -229,13 +253,13 @@ async def haal_bron_op(
     return None
 
 
-def _sla_fout_op(db: Database, bron_id: int, tijdstip: str, tekst: str) -> None:
+def _sla_fout_op(db: Database, bron_id: int, tijdstip: str, tekst: str, code: str | None = None) -> None:
     with db() as conn:
         conn.execute(
-            "INSERT INTO bron_status (bron_id, laatste_poging, fout, fout_sinds) VALUES (?, ?, ?, ?) "
+            "INSERT INTO bron_status (bron_id, laatste_poging, fout, fout_code, fout_sinds) VALUES (?, ?, ?, ?, ?) "
             "ON CONFLICT(bron_id) DO UPDATE SET laatste_poging = excluded.laatste_poging, fout = excluded.fout, "
-            "fout_sinds = COALESCE(bron_status.fout_sinds, excluded.fout_sinds)",
-            (bron_id, tijdstip, tekst, tijdstip),
+            "fout_code = excluded.fout_code, fout_sinds = COALESCE(bron_status.fout_sinds, excluded.fout_sinds)",
+            (bron_id, tijdstip, tekst, code, tijdstip),
         )
 
 
@@ -244,6 +268,30 @@ def interval_minuten(db: Database) -> int:
         return max(1, min(1440, int(db.instelling("interval_minuten", str(STANDAARD_INTERVAL_MIN)))))
     except (TypeError, ValueError):
         return STANDAARD_INTERVAL_MIN
+
+
+def verouderd_na_minuten(db: Database) -> int | None:
+    """Globale instelling "verouderd na"; None = 3 × het ophaalinterval (oorspronkelijk gedrag)."""
+    try:
+        waarde = db.instelling("verouderd_na_minuten") or ""
+        return max(1, min(100000, int(waarde))) if waarde.strip() else None
+    except (TypeError, ValueError):
+        return None
+
+
+def bron_interval(bron, globaal: int) -> int:
+    """Ophaalinterval van één bron: eigen waarde, anders het globale interval."""
+    eigen = bron["interval_minuten"] if "interval_minuten" in bron.keys() else None
+    return int(eigen) if eigen else globaal
+
+
+def bron_verouderd_na(bron, globaal_interval: int, globaal_verouderd: int | None) -> int:
+    eigen = bron["verouderd_na_minuten"] if "verouderd_na_minuten" in bron.keys() else None
+    if eigen:
+        return int(eigen)
+    if globaal_verouderd:
+        return globaal_verouderd
+    return 3 * bron_interval(bron, globaal_interval)
 
 
 def historie_dagen(db: Database) -> int:
@@ -259,20 +307,57 @@ def ruim_historie_op(db: Database) -> None:
         conn.execute("DELETE FROM kpi_historie WHERE tijd < ?", (grens,))
 
 
-async def haal_alle_op(db: Database, kluis: Kluis, transport=None) -> dict[int, str | None]:
+def _actieve_bronnen(db: Database) -> list:
     with db() as conn:
-        bronnen = conn.execute("SELECT * FROM bronnen WHERE actief = 1").fetchall()
+        return conn.execute(
+            "SELECT b.*, s.laatste_poging FROM bronnen b LEFT JOIN bron_status s ON s.bron_id = b.id WHERE b.actief = 1"
+        ).fetchall()
+
+
+def _seconden_tot_volgende(bron, globaal: int) -> float:
+    laatste = parse_iso(bron["laatste_poging"])
+    if laatste is None:
+        return 0.0
+    return bron_interval(bron, globaal) * 60 - (nu() - laatste).total_seconds()
+
+
+async def haal_alle_op(
+    db: Database, kluis: Kluis, transport=None, alleen_verlopen: bool = False
+) -> dict[int, str | None]:
+    """Haalt alle actieve bronnen op (of, met ``alleen_verlopen``, alleen de bronnen waarvan het eigen interval
+    verstreken is) en verwerkt daarna nieuwe kritieke meldingen voor e-mail."""
+    globaal = interval_minuten(db)
+    bronnen = _actieve_bronnen(db)
+    if alleen_verlopen:
+        bronnen = [b for b in bronnen if _seconden_tot_volgende(b, globaal) <= 5]
     resultaten = await asyncio.gather(*(haal_bron_op(db, kluis, b, transport) for b in bronnen))
     ruim_historie_op(db)
+    if bronnen:
+        from . import mail
+
+        try:
+            await mail.verwerk_nieuwe_kritieke(db, kluis)
+        except Exception:  # pragma: no cover - mag het ophalen nooit breken
+            log.exception("Verwerken van e-mailmeldingen mislukt")
     return {b["id"]: r for b, r in zip(bronnen, resultaten, strict=True)}
 
 
-class Planner:
-    """Achtergrondtaak die elke N minuten alle bronnen ophaalt."""
+def wachttijd_s(db: Database) -> float:
+    """Tijd tot de eerstvolgende bron aan de beurt is (tussen 5 s en het globale interval)."""
+    globaal = interval_minuten(db)
+    bronnen = _actieve_bronnen(db)
+    if not bronnen:
+        return globaal * 60
+    return max(5.0, min(globaal * 60, min(_seconden_tot_volgende(b, globaal) for b in bronnen)))
 
-    def __init__(self, db: Database, kluis: Kluis):
+
+class Planner:
+    """Achtergrondtaak die elke bron volgens zijn (eigen of globale) interval ophaalt en dagelijks opruimt."""
+
+    def __init__(self, db: Database, kluis: Kluis, onderhoud=None):
         self.db = db
         self.kluis = kluis
+        self.onderhoud = onderhoud  # functie zonder argumenten, elke ronde aangeroepen (doet zelf max. 1×/dag)
         self.nu_ophalen = asyncio.Event()
         self._taak: asyncio.Task | None = None
 
@@ -288,13 +373,20 @@ class Planner:
                 pass
 
     async def _lus(self) -> None:
+        alles = True  # eerste ronde en na "nu ophalen": alle bronnen
         while True:
             try:
-                await haal_alle_op(self.db, self.kluis)
+                await haal_alle_op(self.db, self.kluis, alleen_verlopen=not alles)
             except Exception:  # pragma: no cover
                 log.exception("Fout in ophaalronde")
+            if self.onderhoud is not None:
+                try:
+                    self.onderhoud()
+                except Exception:  # pragma: no cover
+                    log.exception("Fout in opschoontaak")
             self.nu_ophalen.clear()
             try:
-                await asyncio.wait_for(self.nu_ophalen.wait(), timeout=interval_minuten(self.db) * 60)
+                await asyncio.wait_for(self.nu_ophalen.wait(), timeout=wachttijd_s(self.db))
+                alles = True
             except TimeoutError:
-                pass
+                alles = False

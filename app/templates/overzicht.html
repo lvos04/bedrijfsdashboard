@@ -4,7 +4,7 @@
 {% block inhoud %}
 <div class="paginakop">
   <h1>{{ bedrijfsnaam or 'Bedrijfsoverzicht' }}</h1>
-  <p class="gedempt">Gegevens worden elke {{ interval }} minuten opgehaald.</p>
+  <p class="gedempt">Gegevens worden elke {{ interval }} minuten opgehaald{% if bronnen|selectattr('interval_minuten')|list %} (sommige bronnen met een eigen interval){% endif %}.</p>
 </div>
 
 <section aria-labelledby="kop-meldingen" class="meldingen-blok">
@@ -15,10 +15,17 @@
   {% if onbereikbaar %}
   <ul class="meldingenlijst">
     {% for b in onbereikbaar %}
+    {% if b.koppeling_uit %}
+    <li class="melding melding-waarschuwing">
+      <span class="badge niveau-waarschuwing">Koppeling uit</span>
+      <span>{{ b.fout }}</span>
+    </li>
+    {% else %}
     <li class="melding melding-onbereikbaar">
       <span class="badge niveau-kritiek">Niet bereikbaar</span>
       <span><a href="/bronnen/{{ b.id }}">{{ b.naam }}</a> is niet bereikbaar sinds {{ leesbaar(b.fout_sinds) }}.</span>
     </li>
+    {% endif %}
     {% endfor %}
   </ul>
   {% endif %}

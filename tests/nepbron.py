@@ -42,11 +42,12 @@ def maak_nepbron(slug: str = "scouten", sleutel: str = GELDIGE_SLEUTEL) -> FastA
         {"niveau": "waarschuwing", "tekst": "Val 12 niet geleegd", "sinds": "2026-11-14T08:00:00Z"},
     ]
     app.state.aanroepen = []
+    app.state.fout_body = {"fout": "kapot"}
 
     def _auth(request: Request):
         app.state.aanroepen.append((request.url.path, request.headers.get("authorization")))
         if app.state.status != 200:
-            return JSONResponse({"fout": "kapot"}, status_code=app.state.status)
+            return JSONResponse(app.state.fout_body, status_code=app.state.status)
         if request.headers.get("authorization") != f"Bearer {sleutel}":
             return JSONResponse({"fout": "ongeldige_koppelsleutel"}, status_code=401)
         return None

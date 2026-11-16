@@ -21,6 +21,15 @@
   <label class="vinkje"><input type="checkbox" name="actief" value="1" {% if waarden.actief %}checked{% endif %}> Actief (wordt opgehaald en getoond)</label>
   {% endif %}
   <fieldset>
+    <legend>Ophalen (optioneel)</legend>
+    <label>Ophaalinterval (minuten)
+      <input type="number" name="interval_minuten" min="1" max="1440" value="{{ waarden.interval_minuten or '' }}" placeholder="globaal: {{ interval }}">
+      <span class="hulp">Leeg = het globale interval uit Beheer → Instellingen.</span></label>
+    <label>Verouderd na (minuten)
+      <input type="number" name="verouderd_na_minuten" min="1" max="100000" value="{{ waarden.verouderd_na_minuten or '' }}" placeholder="globaal">
+      <span class="hulp">Na hoeveel minuten zonder geslaagd ophalen de gegevens als verouderd gelden. Leeg = globale instelling (standaard 3 × interval).</span></label>
+  </fieldset>
+  <fieldset>
     <legend>Eigen CA (PEM, optioneel)</legend>
     <p class="hulp">Alleen nodig als de app via https draait met een zelfondertekend certificaat of eigen CA. TLS-verificatie blijft altijd aan.
       {% if bron and bron.heeft_ca %}<br>Er is nu een eigen CA ingesteld.{% endif %}</p>

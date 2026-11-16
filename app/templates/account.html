@@ -1,0 +1,51 @@
+{% extends "basis.html" %}
+{% block titel %}Account · Bedrijfsdashboard{% endblock %}
+{% block inhoud %}
+<h1>Account: {{ gebruiker.gebruikersnaam }}</h1>
+
+<section aria-labelledby="kop-ww" class="kaart">
+  <h2 id="kop-ww">Wachtwoord wijzigen</h2>
+  <form method="post" action="/account/wachtwoord" class="formulier formulier-rij">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Huidig wachtwoord <input type="password" name="huidig" required autocomplete="current-password"></label>
+    <label>Nieuw wachtwoord (min. 12) <input type="password" name="nieuw" required minlength="12" autocomplete="new-password"></label>
+    <label>Herhaal nieuw wachtwoord <input type="password" name="nieuw2" required minlength="12" autocomplete="new-password"></label>
+    <button type="submit" class="knop">Wijzigen</button>
+  </form>
+  <p class="hulp">Na het wijzigen worden uw andere sessies (andere apparaten) afgemeld.</p>
+</section>
+
+<section aria-labelledby="kop-mfa" class="kaart" id="mfa">
+  <h2 id="kop-mfa">Tweestapsverificatie (MFA)</h2>
+  {% if mfa_instellen %}
+    <p>Voeg in uw authenticator-app (bijv. Microsoft/Google Authenticator, 2FAS, Aegis) een account toe met deze sleutel:</p>
+    <p class="sleutel"><code id="mfa-geheim">{{ mfa_instellen.geheim }}</code>
+      <button type="button" class="knop knop-secundair" data-kopieer="mfa-geheim">Kopiëren</button></p>
+    <p class="hulp">Type: op tijd gebaseerd (TOTP), 6 cijfers, 30 seconden. Of gebruik deze koppeling op een telefoon:
+      <a class="qr-uri" href="{{ mfa_instellen.uri }}">{{ mfa_instellen.uri }}</a></p>
+    <form method="post" action="/account/mfa/bevestigen" class="formulier formulier-rij">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Code uit de app <input name="code" required inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7" autocomplete="one-time-code" autofocus></label>
+      <button type="submit" class="knop">MFA inschakelen</button>
+    </form>
+  {% elif mfa_actief %}
+    <p class="bericht bericht-ok">MFA staat aan voor uw account.</p>
+    {% if mfa_verplicht %}
+      <p class="hulp">MFA is verplicht voor beheerders en kan niet worden uitgeschakeld.</p>
+    {% else %}
+    <form method="post" action="/account/mfa/uitschakelen" class="formulier formulier-rij" data-bevestig="MFA uitschakelen?">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Wachtwoord ter bevestiging <input type="password" name="wachtwoord" required autocomplete="current-password"></label>
+      <button type="submit" class="knop knop-gevaar">MFA uitschakelen</button>
+    </form>
+    {% endif %}
+  {% else %}
+    <p>MFA staat uit. Met MFA vraagt het dashboard bij het aanmelden naast uw wachtwoord om een code van uw telefoon.</p>
+    {% if mfa_verplicht %}<p class="bericht bericht-waarschuwing">MFA is verplicht voor beheerders.</p>{% endif %}
+    <form method="post" action="/account/mfa/start" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="knop">MFA instellen</button>
+    </form>
+  {% endif %}
+</section>
+{% endblock %}

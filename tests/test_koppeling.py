@@ -1,8 +1,16 @@
 import json
 
+import pytest
+
 from app.tijd import iso
 
 from .conftest import WACHTWOORD, csrf, csrf_uit, voeg_bron_toe
+
+
+@pytest.fixture(autouse=True)
+def koppeling_aan(app):
+    """De eigen koppel-API staat standaard uit; deze tests gaan over het gedrag als hij aan staat."""
+    app.state.db.zet_instelling("koppeling_ingeschakeld", "1")
 
 
 def _maak_sleutel(client, naam="TuinWerk OS"):
@@ -137,3 +145,37 @@ def test_lezer_kan_geen_sleutels_beheren(beheerder):
 
 def test_niet_aangemeld_beheer_api_401(client):
     assert client.get("/api/beheer/koppelsleutels").status_code == 401
+
+
+def test_koppeling_standaard_uit_geeft_403_ook_met_geldige_sleutel(beheerder, app):
+    app.state.db.zet_instelling("koppeling_ingeschakeld", "0")
+    s = _maak_sleutel(beheerder)  # sleutelbeheer blijft werken
+    kop = {"Authorization": f"Bearer {s['sleutel']}"}
+    for pad in ("/info", "/samenvatting", "/datasets/bronnen", "/datasets/bronnen?limiet=0", "/datasets/onbekend"):
+        for headers in (kop, {}):
+            r = beheerder.get("/api/koppeling/v1" + pad, headers=headers)
+            assert r.status_code == 403, pad
+            assert r.json() == {"fout": "koppeling_uitgeschakeld"}
+    # De schakelaar staat zichtbaar boven het sleutelbeheer
+    html = beheerder.get("/beheer").text
+    assert "Bedrijfskoppeling ingeschakeld" in html and "Sleutel aanmaken" in html
+    # Aanzetten via Beheer
+    r = beheerder.post(
+        "/beheer/koppeling", data={"csrf_token": csrf(beheerder), "koppeling_ingeschakeld": "1"}, follow_redirects=False
+    )
+    assert r.status_code == 303
+    assert beheerder.get("/api/koppeling/v1/info", headers=kop).status_code == 200
+    beheerder.post("/beheer/koppeling", data={"csrf_token": csrf(beheerder)})
+    assert beheerder.get("/api/koppeling/v1/info", headers=kop).status_code == 403
+
+
+def test_nieuwe_installatie_koppeling_uit(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from app.config import Config
+    from app.main import create_app
+
+    nieuw = create_app(Config(data_dir=tmp_path / "nieuw", achtergrond=False))
+    with TestClient(nieuw) as c:
+        r = c.get("/api/koppeling/v1/info", headers={"Authorization": "Bearer bk_x"})
+        assert r.status_code == 403 and r.json() == {"fout": "koppeling_uitgeschakeld"}

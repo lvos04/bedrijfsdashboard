@@ -1,0 +1,15 @@
+{% extends "basis.html" %}
+{% block titel %}Verificatiecode · Bedrijfsdashboard{% endblock %}
+{% block inhoud %}
+<section class="kaart smal">
+  <h1>Verificatiecode</h1>
+  <p>Open uw authenticator-app en vul de code van 6 cijfers in.</p>
+  <form method="post" action="/aanmelden/mfa" class="formulier">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Code
+      <input name="code" required inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7" autocomplete="one-time-code" autofocus></label>
+    <button type="submit" class="knop">Bevestigen</button>
+  </form>
+  <p class="hulp"><a href="/aanmelden">Opnieuw aanmelden</a>. Telefoon kwijt? Vraag een beheerder om uw wachtwoord te resetten en MFA uit te schakelen.</p>
+</section>
+{% endblock %}

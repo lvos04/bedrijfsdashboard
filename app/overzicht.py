@@ -8,7 +8,7 @@ from datetime import timedelta
 from markupsafe import Markup, escape
 
 from .db import Database
-from .ophalen import interval_minuten
+from .ophalen import KOPPELING_UIT, bron_interval, bron_verouderd_na, interval_minuten, verouderd_na_minuten
 from .tijd import nu, parse_iso
 
 NIVEAU_VOLGORDE = {"kritiek": 0, "waarschuwing": 1, "info": 2}
@@ -17,15 +17,17 @@ STATUS_LABEL = {"ok": "In orde", "let_op": "Let op", "actie": "Actie nodig", "on
 BRON_KOLOMMEN = (
     "b.id, b.naam, b.app_slug, b.basis_url, b.sleutel_voorvoegsel, b.ca_pem IS NOT NULL AS heeft_ca, "
     "b.actief, b.aangemaakt_op, s.laatste_poging, s.laatste_succes, s.fout, s.fout_sinds, s.info_json, "
-    "s.samenvatting_json"
+    "s.samenvatting_json, s.fout_code, b.interval_minuten, b.verouderd_na_minuten"
 )
 
 
-def _bron_model(rij, interval: int) -> dict:
+def _bron_model(rij, interval: int, verouderd_globaal: int | None = None) -> dict:
     info = json.loads(rij["info_json"]) if rij["info_json"] else None
     samenvatting = json.loads(rij["samenvatting_json"]) if rij["samenvatting_json"] else None
     laatste_succes = parse_iso(rij["laatste_succes"])
-    te_oud = laatste_succes is None or nu() - laatste_succes > timedelta(minutes=3 * interval)
+    te_oud = laatste_succes is None or nu() - laatste_succes > timedelta(
+        minutes=bron_verouderd_na(rij, interval, verouderd_globaal)
+    )
     heeft_fout = rij["fout"] is not None
     return {
         "id": rij["id"],
@@ -39,6 +41,12 @@ def _bron_model(rij, interval: int) -> dict:
         "laatste_succes": rij["laatste_succes"],
         "fout": rij["fout"],
         "fout_sinds": rij["fout_sinds"],
+        "fout_code": rij["fout_code"],
+        "koppeling_uit": rij["fout_code"] == KOPPELING_UIT,
+        "interval_minuten": rij["interval_minuten"],
+        "verouderd_na_minuten": rij["verouderd_na_minuten"],
+        "effectief_interval": bron_interval(rij, interval),
+        "effectief_verouderd_na": bron_verouderd_na(rij, interval, verouderd_globaal),
         "info": info,
         "samenvatting": samenvatting,
         "nooit_opgehaald": rij["laatste_poging"] is None,
@@ -55,7 +63,9 @@ def bronnen(db: Database, alleen_actief: bool = True) -> list[dict]:
         sql += " WHERE b.actief = 1"
     sql += " ORDER BY b.naam COLLATE NOCASE"
     with db() as conn:
-        return [_bron_model(r, interval) for r in conn.execute(sql).fetchall()]
+        rijen = conn.execute(sql).fetchall()
+    verouderd = verouderd_na_minuten(db)
+    return [_bron_model(r, interval, verouderd) for r in rijen]
 
 
 def bron(db: Database, bron_id: int) -> dict | None:
@@ -64,7 +74,7 @@ def bron(db: Database, bron_id: int) -> dict | None:
             f"SELECT {BRON_KOLOMMEN} FROM bronnen b LEFT JOIN bron_status s ON s.bron_id = b.id WHERE b.id = ?",
             (bron_id,),
         ).fetchone()
-    return _bron_model(rij, interval_minuten(db)) if rij else None
+    return _bron_model(rij, interval_minuten(db), verouderd_na_minuten(db)) if rij else None
 
 
 def gebundelde_meldingen(lijst: list[dict]) -> list[dict]:

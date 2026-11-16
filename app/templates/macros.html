@@ -14,6 +14,8 @@
 
 {% macro bron_status(b) -%}
 {% if b.nooit_opgehaald %}<span class="status-regel">Nog niet opgehaald</span>
+{% elif b.koppeling_uit %}<span class="status-regel status-letop-tekst" role="status">Koppeling staat uit: {{ b.fout }}</span>
+{% if b.laatste_succes %}<span class="status-regel">Laatste gegevens van {{ leesbaar(b.laatste_succes) }} <span class="badge verouderd">verouderd</span></span>{% endif %}
 {% elif b.fout %}<span class="status-regel status-fout" role="status">Niet bereikbaar sinds {{ leesbaar(b.fout_sinds) }}: {{ b.fout }}</span>
 {% if b.laatste_succes %}<span class="status-regel">Laatste gegevens van {{ leesbaar(b.laatste_succes) }} <span class="badge verouderd">verouderd</span></span>{% endif %}
 {% else %}<span class="status-regel">Bijgewerkt {{ leesbaar(b.laatste_succes) }}{% if b.verouderd %} <span class="badge verouderd">verouderd</span>{% endif %}</span>

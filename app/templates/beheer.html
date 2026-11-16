@@ -3,6 +3,29 @@
 {% block titel %}Beheer · Bedrijfsdashboard{% endblock %}
 {% block inhoud %}
 <h1>Beheer</h1>
+<nav class="snelmenu" aria-label="Onderdelen van Beheer">
+  <a href="#kop-bronnen">Bronnen</a> <a href="#kop-inst">Instellingen</a> <a href="#beveiliging">Beveiliging</a>
+  <a href="#kop-gebr">Gebruikers</a> <a href="#koppelsleutels">Koppelsleutels</a> <a href="#email">E-mailmeldingen</a>
+  <a href="#tv">Tv-weergave</a> <a href="#back-up">Back-up</a> <a href="/beheer/audit">Auditlog</a>
+</nav>
+
+{% if nieuwe_tv_link %}
+<section class="kaart kaart-ok" role="status">
+  <h2>Nieuwe tv-link</h2>
+  <p><strong>Kopieer deze link nu.</strong> Hij wordt maar één keer getoond; een eerdere link werkt niet meer.</p>
+  <p class="sleutel"><code id="tv-link">{{ nieuwe_tv_link }}</code>
+    <button type="button" class="knop knop-secundair" data-kopieer="tv-link">Kopiëren</button></p>
+  {% if not tv.aan %}<p class="bericht bericht-waarschuwing">De tv-weergave staat nog uit; zet hem hieronder aan.</p>{% endif %}
+</section>
+{% endif %}
+
+{% if terugzet_resultaat %}
+<section class="kaart kaart-ok" role="status">
+  <h2>Configuratie teruggezet</h2>
+  <p>{{ terugzet_resultaat.bronnen_nieuw }} bron(nen) toegevoegd, {{ terugzet_resultaat.bronnen_bijgewerkt }} bijgewerkt,
+    {{ terugzet_resultaat.instellingen }} instelling(en) en {{ terugzet_resultaat.koppelsleutels }} koppelsleutel(s) overgenomen.</p>
+</section>
+{% endif %}
 
 {% if test %}
 <section class="kaart {{ 'kaart-ok' if test.ok else 'kaart-fout' }}" role="status" aria-live="polite">
@@ -11,6 +34,8 @@
     <p>Verbinding gelukt. {{ test.info.naam or test.info.app }} versie {{ test.info.versie or 'onbekend' }} (API {{ test.info.api_versie or '?' }}){% if test.info.bedrijf %}, {{ test.info.bedrijf }}{% endif %}.</p>
     {% if test.info.datasets %}<p>Datasets: {{ test.info.datasets|join(', ') }}</p>{% endif %}
     {% if test.waarschuwing %}<p class="bericht bericht-waarschuwing">{{ test.waarschuwing }}</p>{% endif %}
+  {% elif test.code == 'koppeling_uitgeschakeld' %}
+    <p><strong>Koppeling staat uit.</strong> {{ test.fout }}</p>
   {% else %}
     <p>Verbinding mislukt: {{ test.fout }}</p>
   {% endif %}
@@ -40,7 +65,7 @@
   {% if bronnen %}
   <div class="tabel-wrap">
   <table class="tabel">
-    <thead><tr><th scope="col">Naam</th><th scope="col">App</th><th scope="col">Basis-URL</th><th scope="col">Sleutel</th><th scope="col">Status</th><th scope="col">Acties</th></tr></thead>
+    <thead><tr><th scope="col">Naam</th><th scope="col">App</th><th scope="col">Basis-URL</th><th scope="col">Sleutel</th><th scope="col">Interval</th><th scope="col">Status</th><th scope="col">Acties</th></tr></thead>
     <tbody>
     {% for b in bronnen %}
     <tr>
@@ -48,6 +73,7 @@
       <td><code>{{ b.app_slug }}</code></td>
       <td class="breek">{{ b.basis_url }}{% if b.heeft_ca %} <span class="badge status-onbekend">eigen CA</span>{% endif %}</td>
       <td><code>{{ b.sleutel_voorvoegsel }}…</code></td>
+      <td>{{ b.effectief_interval }} min{% if not b.interval_minuten %} <span class="gedempt">(globaal)</span>{% endif %}</td>
       <td>{{ bron_status(b) }}</td>
       <td class="acties">
         <form method="post" action="/beheer/bronnen/{{ b.id }}/testen" class="inline">
@@ -74,8 +100,33 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Bedrijfsnaam <input name="bedrijfsnaam" value="{{ bedrijfsnaam }}" maxlength="200"></label>
     <label>Ophaalinterval (minuten) <input type="number" name="interval_minuten" min="1" max="1440" value="{{ interval }}" required></label>
-    <label>Historie bewaren (dagen) <input type="number" name="historie_dagen" min="1" max="3650" value="{{ historie_dagen }}" required></label>
+    <label>Historie KPI's bewaren (dagen) <input type="number" name="historie_dagen" min="1" max="3650" value="{{ historie_dagen }}" required></label>
+    <label>Verouderd na (minuten) <input type="number" name="verouderd_na_minuten" min="1" max="100000" value="{{ verouderd_na }}" placeholder="3 × interval">
+      <span class="hulp">Leeg = 3 × het ophaalinterval. Per bron aan te passen.</span></label>
     <button type="submit" class="knop">Opslaan</button>
+  </form>
+</section>
+
+<section aria-labelledby="kop-bev" class="kaart" id="beveiliging">
+  <h2 id="kop-bev">Beveiliging</h2>
+  <form method="post" action="/beheer/beveiliging" class="formulier">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label class="vinkje"><input type="checkbox" name="mfa_verplicht_beheerders" value="1" {% if beveiliging.mfa_verplicht %}checked{% endif %}>
+      MFA verplicht voor beheerders <span class="hulp">(standaard uit; een beheerder zonder MFA kan dan alleen nog het overzicht en Account gebruiken)</span></label>
+    <label class="vinkje"><input type="checkbox" name="oorsprong_strikt" value="1" {% if beveiliging.oorsprong_strikt %}checked{% endif %}>
+      Strikte oorsprongcontrole <span class="hulp">(standaard uit; weiger formulieren zonder Origin- én Referer-header)</span></label>
+    <div class="formulier formulier-rij">
+      <label>Vertrouwde proxy
+        <input name="vertrouwde_proxies" value="{{ beveiliging.vertrouwde_proxies }}" maxlength="1000" {% if beveiliging.proxies_omgeving %}disabled{% endif %}>
+        <span class="hulp">{% if beveiliging.proxies_omgeving %}Ingesteld via omgevingsvariabele VERTROUWDE_PROXIES: <code>{{ beveiliging.proxies_omgeving }}</code>.{% else %}<code>privé</code> (standaard: X-Forwarded-For vertrouwen van lokale/privé-adressen), <code>geen</code>, of IP's/CIDR's gescheiden door komma's.{% endif %}</span></label>
+      <label>Auditlog bewaren (dagen)
+        <input type="number" name="audit_bewaardagen" min="0" max="36500" value="{{ beveiliging.audit_bewaardagen }}">
+        <span class="hulp">0 = onbeperkt (standaard).</span></label>
+    </div>
+    {% if beveiliging.proxies_omgeving %}<input type="hidden" name="vertrouwde_proxies" value="{{ beveiliging.vertrouwde_proxies }}">{% endif %}
+    <p class="hulp">Aanmeldbeperking: 5 mislukte pogingen per 15 minuten per gebruikersnaam + IP-adres, en 20 per gebruikersnaam in totaal.
+      Verlopen sessies worden dagelijks opgeruimd{% if beveiliging.laatste_opschoning %} (laatst {{ leesbaar(beveiliging.laatste_opschoning) }}){% endif %}.</p>
+    <div><button type="submit" class="knop">Opslaan</button> <a class="knop knop-secundair" href="/beheer/audit">Auditlog bekijken</a></div>
   </form>
 </section>
 
@@ -83,15 +134,23 @@
   <h2 id="kop-gebr">Gebruikers</h2>
   <div class="tabel-wrap">
   <table class="tabel">
-    <thead><tr><th scope="col">Gebruikersnaam</th><th scope="col">Rol</th><th scope="col">Aangemaakt</th><th scope="col">Acties</th></tr></thead>
+    <thead><tr><th scope="col">Gebruikersnaam</th><th scope="col">Rol</th><th scope="col">MFA</th><th scope="col">Aangemaakt</th><th scope="col">Acties</th></tr></thead>
     <tbody>
     {% for g in gebruikers %}
-    <tr><th scope="row">{{ g.gebruikersnaam }}</th><td>{{ g.rol }}</td><td>{{ leesbaar(g.aangemaakt_op) }}</td>
+    <tr><th scope="row">{{ g.gebruikersnaam }}</th><td>{{ g.rol }}</td><td>{{ 'aan' if g.mfa_actief else 'uit' }}</td><td>{{ leesbaar(g.aangemaakt_op) }}</td>
       <td>{% if g.id != gebruiker.id %}
+        <details class="inline-details"><summary class="knop knop-secundair">Wachtwoord resetten</summary>
+          <form method="post" action="/beheer/gebruikers/{{ g.id }}/wachtwoord" class="formulier">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label>Nieuw wachtwoord (min. 12) <input type="password" name="wachtwoord" required minlength="12" autocomplete="new-password"></label>
+            {% if g.mfa_actief %}<label class="vinkje"><input type="checkbox" name="mfa_uitschakelen" value="1"> Ook MFA uitschakelen (bijv. telefoon kwijt)</label>{% endif %}
+            <button type="submit" class="knop">Resetten en overal afmelden</button>
+          </form>
+        </details>
         <form method="post" action="/beheer/gebruikers/{{ g.id }}/verwijderen" class="inline" data-bevestig="Gebruiker '{{ g.gebruikersnaam }}' verwijderen?">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="knop knop-gevaar">Verwijderen</button>
-        </form>{% else %}<span class="gedempt">(uzelf)</span>{% endif %}</td></tr>
+        </form>{% else %}<span class="gedempt">(uzelf — <a href="/account">Account</a>)</span>{% endif %}</td></tr>
     {% endfor %}
     </tbody>
   </table>
@@ -106,9 +165,16 @@
   </form>
 </section>
 
-<section aria-labelledby="kop-ks" class="kaart">
+<section aria-labelledby="kop-ks" class="kaart" id="koppelsleutels">
   <h2 id="kop-ks">Koppelsleutels van dit dashboard</h2>
   <p class="gedempt">Hiermee kunnen andere apps het geaggregeerde overzicht ophalen via <code>/api/koppeling/v1</code> (slug <code>bedrijfsdashboard</code>).</p>
+  <form method="post" action="/beheer/koppeling" class="formulier schakelaar">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label class="vinkje"><input type="checkbox" name="koppeling_ingeschakeld" value="1" {% if koppeling_aan %}checked{% endif %}>
+      Bedrijfskoppeling ingeschakeld</label>
+    <p class="hulp">{% if koppeling_aan %}Aan: apps met een geldige sleutel kunnen gegevens ophalen.{% else %}Uit (standaard): alle verzoeken naar <code>/api/koppeling/v1</code> krijgen <code>403 koppeling_uitgeschakeld</code>, ook met een geldige sleutel.{% endif %}</p>
+    <div><button type="submit" class="knop knop-secundair">Opslaan</button></div>
+  </form>
   {% if koppelsleutels %}
   <div class="tabel-wrap">
   <table class="tabel">
@@ -132,6 +198,76 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Naam <input name="naam" required maxlength="100" placeholder="bijv. TuinWerk OS"></label>
     <button type="submit" class="knop">Sleutel aanmaken</button>
+  </form>
+</section>
+
+<section aria-labelledby="kop-email" class="kaart" id="email">
+  <h2 id="kop-email">E-mailmeldingen</h2>
+  <p class="gedempt">Optioneel. Er wordt alleen gemaild bij <strong>nieuwe kritieke meldingen</strong>, één keer per melding.</p>
+  {% if email.laatste_fout %}<p class="bericht bericht-fout">Laatste verzendfout: {{ email.laatste_fout }}</p>{% endif %}
+  {% if email.laatste_op %}<p class="hulp">Laatste mail verstuurd: {{ leesbaar(email.laatste_op) }}</p>{% endif %}
+  <form method="post" action="/beheer/email" class="formulier">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label class="vinkje"><input type="checkbox" name="email_ingeschakeld" value="1" {% if email.aan %}checked{% endif %}> E-mailmeldingen ingeschakeld</label>
+    <div class="formulier formulier-rij">
+      <label>SMTP-server <input name="smtp_host" value="{{ email.smtp_host }}" maxlength="255" placeholder="smtp.example.nl"></label>
+      <label>Poort <input type="number" name="smtp_poort" min="1" max="65535" value="{{ email.smtp_poort }}"></label>
+      <label>Beveiliging <select name="smtp_beveiliging">
+        {% for v, t in [('starttls', 'STARTTLS (587)'), ('ssl', 'SSL/TLS (465)'), ('geen', 'Geen (alleen intern netwerk)')] %}
+        <option value="{{ v }}" {% if email.smtp_beveiliging == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></label>
+      <label>Gebruikersnaam <input name="smtp_gebruiker" value="{{ email.smtp_gebruiker }}" maxlength="255" autocomplete="off"></label>
+      <label>Wachtwoord <input type="password" name="smtp_wachtwoord" autocomplete="new-password" placeholder="{{ 'ongewijzigd' if email.heeft_wachtwoord else '' }}">
+        <span class="hulp">Versleuteld opgeslagen{% if email.heeft_wachtwoord %}; leeg laten = ongewijzigd{% endif %}.</span></label>
+      <label>Afzender <input name="email_afzender" value="{{ email.afzender }}" maxlength="255" placeholder="dashboard@example.nl"></label>
+      <label>Ontvangers <input name="email_ontvangers" value="{{ email.ontvangers }}" maxlength="2000" placeholder="a@example.nl, b@example.nl"></label>
+    </div>
+    {% if email.heeft_wachtwoord %}<label class="vinkje"><input type="checkbox" name="smtp_wachtwoord_wissen" value="1"> Opgeslagen wachtwoord verwijderen</label>{% endif %}
+    <div><button type="submit" class="knop">Opslaan</button></div>
+  </form>
+  <form method="post" action="/beheer/email/test" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="knop knop-secundair">Testmail versturen</button>
+  </form>
+</section>
+
+<section aria-labelledby="kop-tv" class="kaart" id="tv">
+  <h2 id="kop-tv">Tv-weergave</h2>
+  <p class="gedempt">Optioneel. Een alleen-lezen kioskpagina voor een scherm in de kantine of op kantoor, zonder aanmelden,
+    via een geheime link. Toont KPI's en meldingen, ververst elke minuut. Iedereen met de link kan meekijken.</p>
+  <form method="post" action="/beheer/tv" class="formulier">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label class="vinkje"><input type="checkbox" name="tv_ingeschakeld" value="1" {% if tv.aan %}checked{% endif %}> Tv-weergave ingeschakeld</label>
+    <div><button type="submit" class="knop knop-secundair">Opslaan</button></div>
+  </form>
+  <form method="post" action="/beheer/tv/nieuwe-link" class="inline" {% if tv.heeft_link %}data-bevestig="Een nieuwe link maken? De huidige link werkt daarna niet meer."{% endif %}>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="knop">{{ 'Nieuwe link maken' if tv.heeft_link else 'Link maken' }}</button>
+  </form>
+  {% if tv.heeft_link %}<p class="hulp">Er is een link actief. Een nieuwe link maken trekt de oude in.</p>{% endif %}
+</section>
+
+<section aria-labelledby="kop-bu" class="kaart" id="back-up">
+  <h2 id="kop-bu">Back-up van de configuratie</h2>
+  <p class="gedempt">Download bronnen (met koppelsleutels), instellingen en de koppelsleutels van dit dashboard als één bestand,
+    versleuteld met een herstelwachtwoord dat u zelf kiest. Gebruikers, auditlog en historie zitten er niet in.
+    Bewaar het herstelwachtwoord goed: zonder kan het bestand niet worden teruggezet.</p>
+  <h3>Exporteren</h3>
+  <form method="post" action="/beheer/back-up/exporteren" class="formulier formulier-rij">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Herstelwachtwoord (min. 12) <input type="password" name="herstelwachtwoord" required minlength="12" autocomplete="new-password"></label>
+    <label>Herhaal herstelwachtwoord <input type="password" name="herstelwachtwoord2" required minlength="12" autocomplete="new-password"></label>
+    <label>Uw eigen wachtwoord <input type="password" name="eigen_wachtwoord" required autocomplete="current-password"></label>
+    <button type="submit" class="knop">Downloaden</button>
+  </form>
+  <h3>Terugzetten</h3>
+  <p class="hulp">Bronnen met dezelfde app-slug en basis-URL worden bijgewerkt, andere toegevoegd; bestaande bronnen worden niet verwijderd.
+    Instellingen uit het bestand overschrijven de huidige.</p>
+  <form method="post" action="/beheer/back-up/terugzetten" enctype="multipart/form-data" class="formulier formulier-rij" data-bevestig="Configuratie uit dit bestand terugzetten?">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Exportbestand <input type="file" name="bestand" accept=".json,application/json" required></label>
+    <label>Herstelwachtwoord <input type="password" name="herstelwachtwoord" required autocomplete="off"></label>
+    <label>Uw eigen wachtwoord <input type="password" name="eigen_wachtwoord" required autocomplete="current-password"></label>
+    <button type="submit" class="knop">Terugzetten</button>
   </form>
 </section>
 {% endblock %}

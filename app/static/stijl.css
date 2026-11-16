@@ -159,7 +159,24 @@ fieldset { border: 1px solid var(--rand); border-radius: 8px; padding: .8rem; di
 .sparkline-leeg { font-size: .85rem; color: var(--gedempt); }
 .sleutel code { word-break: break-all; background: var(--achtergrond); padding: .3rem .5rem; border-radius: 6px; display: inline-block; }
 
+.snelmenu { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin: .25rem 0 1rem; }
+.inline-details { display: inline-block; }
+.inline-details > summary { list-style: none; }
+.inline-details > summary::-webkit-details-marker { display: none; }
+.inline-details[open] { display: block; margin: .4rem 0; }
+.schakelaar { margin: .5rem 0 1rem; padding: .6rem .8rem; border: 1px solid var(--rand); border-radius: 8px; background: var(--achtergrond); }
+.status-letop-tekst { color: var(--letop-tekst); font-weight: 600; }
+.paginering { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: 1rem 0; }
+.qr-uri { word-break: break-all; }
+
 @media (max-width: 600px) {
   h1 { font-size: 1.35rem; }
   .tegel-kop { flex-direction: column; }
 }
+
+/* Tv-weergave (kiosk): groter en zonder navigatie */
+body.tv { font-size: 20px; }
+body.tv main { max-width: none; padding: 1rem 24px; }
+.tv-kop { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .5rem 1rem; }
+body.tv .tegels { grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); margin-top: 1rem; }
+body.tv .tegel h2 { margin: 0; }

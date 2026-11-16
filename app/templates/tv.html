@@ -1,0 +1,56 @@
+{% from "macros.html" import kpi_waarde, status_badge, niveau_badge %}
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="refresh" content="60">
+  <title>{{ bedrijfsnaam or 'Bedrijfsoverzicht' }} · Tv-weergave</title>
+  <link rel="stylesheet" href="/static/stijl.css?v={{ versie }}">
+</head>
+<body class="tv">
+<main>
+  <header class="tv-kop">
+    <h1>{{ bedrijfsnaam or 'Bedrijfsoverzicht' }}</h1>
+    <p class="gedempt">Bijgewerkt {{ leesbaar(nu) }} · ververst elke minuut</p>
+  </header>
+  <section aria-label="Meldingen">
+    {% if not kritiek and not onbereikbaar %}
+      <p class="bericht bericht-ok">Geen kritieke meldingen{% if bronnen %} en alle apps zijn bereikbaar{% endif %}.</p>
+    {% endif %}
+    <ul class="meldingenlijst">
+      {% for b in onbereikbaar %}
+      <li class="melding {{ 'melding-waarschuwing' if b.koppeling_uit else 'melding-onbereikbaar' }}">
+        <span class="badge {{ 'niveau-waarschuwing' if b.koppeling_uit else 'niveau-kritiek' }}">{{ 'Koppeling uit' if b.koppeling_uit else 'Niet bereikbaar' }}</span>
+        <span>{{ b.naam }}{% if not b.koppeling_uit %} is niet bereikbaar sinds {{ leesbaar(b.fout_sinds) }}{% endif %}</span>
+      </li>
+      {% endfor %}
+      {% for m in kritiek + waarschuwingen %}
+      <li class="melding melding-{{ m.niveau }}">{{ niveau_badge(m.niveau) }}
+        <span>{{ m.bron_naam }}: {{ m.tekst }}{% if m.verouderd %} <span class="badge verouderd">verouderd</span>{% endif %}</span></li>
+      {% endfor %}
+    </ul>
+  </section>
+  <section aria-label="Apps" class="tegels">
+    {% for b in bronnen %}
+    <article class="tegel{% if b.fout and not b.koppeling_uit %} tegel-fout{% endif %}">
+      <h2>{{ b.naam }}</h2>
+      {% if b.samenvatting and b.samenvatting.kpis %}
+      <ul class="kpis{% if b.verouderd %} verouderd-inhoud{% endif %}">
+        {% for k in b.samenvatting.kpis %}
+        <li class="kpi kpi-{{ k.status }}">
+          <span class="kpi-label">{{ k.label }}</span>
+          <span class="kpi-waarde">{{ kpi_waarde(k) }}</span>
+          {{ status_badge(k.status) }}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="gedempt">Geen gegevens.</p>{% endif %}
+    </article>
+    {% endfor %}
+  </section>
+</main>
+</body>
+</html>
