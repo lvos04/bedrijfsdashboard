@@ -23,8 +23,9 @@ def test_getal_normalisatie():
 
 
 def test_normaliseer_onbekende_status():
-    s = normaliseer_samenvatting({"kpis": [{"sleutel": "a", "waarde": 1, "status": "raar"}],
-                                  "meldingen": [{"niveau": "??", "tekst": "x"}]})
+    s = normaliseer_samenvatting(
+        {"kpis": [{"sleutel": "a", "waarde": 1, "status": "raar"}], "meldingen": [{"niveau": "??", "tekst": "x"}]}
+    )
     assert s["kpis"][0]["status"] == "onbekend"
     assert s["meldingen"][0]["niveau"] == "info"
 
@@ -49,7 +50,7 @@ def test_ophalen_succes_cache_en_historie(beheerder, app, met_nepbron):
     assert "Open waarnemingen" in html and "Trips boven drempel" in html
     assert "12,5" in html
     detail = beheerder.get(f"/bronnen/{bron['id']}").text
-    assert "<svg class=\"sparkline\"" in detail
+    assert '<svg class="sparkline"' in detail
 
 
 def test_fout_401_bewaart_laatste_gegevens_als_verouderd(beheerder, app, met_nepbron):
@@ -101,7 +102,9 @@ def test_verbindingsfout_en_500_en_geen_json(beheerder, app):
 
     assert "Verbinding mislukt" in list(_haal(app, httpx.MockTransport(weigert)).values())[0]
     assert "HTTP 500" in list(_haal(app, httpx.MockTransport(lambda r: httpx.Response(500))).values())[0]
-    assert "geen JSON" in list(_haal(app, httpx.MockTransport(lambda r: httpx.Response(200, text="<html>"))).values())[0]
+    assert (
+        "geen JSON" in list(_haal(app, httpx.MockTransport(lambda r: httpx.Response(200, text="<html>"))).values())[0]
+    )
     assert "404" in list(_haal(app, httpx.MockTransport(lambda r: httpx.Response(404))).values())[0]
 
 
@@ -119,8 +122,10 @@ def test_verbinding_testen_knop(beheerder, app, met_nepbron):
 def test_nu_ophalen_knop_en_historie_opruimen(beheerder, app, met_nepbron):
     voeg_bron_toe(beheerder)
     with app.state.db() as conn:
-        conn.execute("INSERT INTO kpi_historie (bron_id, sleutel, tijd, waarde) VALUES (?, 'oud', '2000-01-01T00:00:00Z', 1)",
-                     (_bron(app)["id"],))
+        conn.execute(
+            "INSERT INTO kpi_historie (bron_id, sleutel, tijd, waarde) VALUES (?, 'oud', '2000-01-01T00:00:00Z', 1)",
+            (_bron(app)["id"],),
+        )
     r = beheerder.post("/beheer/ophalen", data={"csrf_token": csrf(beheerder)}, follow_redirects=False)
     assert r.status_code == 303
     with app.state.db() as conn:
@@ -131,10 +136,9 @@ def test_nu_ophalen_knop_en_historie_opruimen(beheerder, app, met_nepbron):
 def test_planner_draait_in_achtergrond(tmp_path, nepbron):
     from fastapi.testclient import TestClient
 
+    import app.ophalen as oph
     from app.config import Config
     from app.main import create_app
-
-    import app.ophalen as oph
 
     app = create_app(Config(data_dir=tmp_path / "d", achtergrond=True))
     transport = httpx.ASGITransport(app=nepbron)

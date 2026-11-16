@@ -51,8 +51,7 @@ def sha256(tekst: str) -> str:
 def maak_sessie(conn, gebruiker_id: int) -> str:
     token = secrets.token_urlsafe(32)
     conn.execute(
-        "INSERT INTO sessies (token_hash, gebruiker_id, csrf_token, aangemaakt_op, verloopt_op) "
-        "VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO sessies (token_hash, gebruiker_id, csrf_token, aangemaakt_op, verloopt_op) VALUES (?, ?, ?, ?, ?)",
         (sha256(token), gebruiker_id, secrets.token_urlsafe(32), iso(), iso(nu() + SESSIE_DUUR)),
     )
     conn.execute("DELETE FROM sessies WHERE verloopt_op < ?", (iso(),))

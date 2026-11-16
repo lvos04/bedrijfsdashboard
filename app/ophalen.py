@@ -38,6 +38,7 @@ class OphaalFout(Exception):
 
 # ---------------------------------------------------------------- normaliseren
 
+
 def getal(waarde: Any) -> float | int | None:
     """JSON-getal of string-getal -> getal; al het andere -> None (nooit verzinnen)."""
     if isinstance(waarde, bool) or waarde is None:
@@ -70,25 +71,29 @@ def normaliseer_samenvatting(data: Any) -> dict:
             continue
         ruwe = k.get("waarde")
         num = getal(ruwe)
-        kpis.append({
-            "sleutel": _tekst(k.get("sleutel"), 100),
-            "label": _tekst(k.get("label") or k.get("sleutel"), 200),
-            "waarde": num,
-            # Niet-numerieke tekstwaarde tonen we letterlijk, maar slaan we niet op in de historie.
-            "waarde_tekst": None if num is not None or ruwe is None else _tekst(ruwe, 100),
-            "eenheid": _tekst(k.get("eenheid"), 30),
-            "status": k.get("status") if k.get("status") in STATUSSEN else "onbekend",
-            "toelichting": _tekst(k.get("toelichting")),
-        })
+        kpis.append(
+            {
+                "sleutel": _tekst(k.get("sleutel"), 100),
+                "label": _tekst(k.get("label") or k.get("sleutel"), 200),
+                "waarde": num,
+                # Niet-numerieke tekstwaarde tonen we letterlijk, maar slaan we niet op in de historie.
+                "waarde_tekst": None if num is not None or ruwe is None else _tekst(ruwe, 100),
+                "eenheid": _tekst(k.get("eenheid"), 30),
+                "status": k.get("status") if k.get("status") in STATUSSEN else "onbekend",
+                "toelichting": _tekst(k.get("toelichting")),
+            }
+        )
     meldingen = []
     for m in data.get("meldingen") or []:
         if not isinstance(m, dict) or not m.get("tekst"):
             continue
-        meldingen.append({
-            "niveau": m.get("niveau") if m.get("niveau") in NIVEAUS else "info",
-            "tekst": _tekst(m.get("tekst")),
-            "sinds": m.get("sinds") if parse_iso(m.get("sinds")) else None,
-        })
+        meldingen.append(
+            {
+                "niveau": m.get("niveau") if m.get("niveau") in NIVEAUS else "info",
+                "tekst": _tekst(m.get("tekst")),
+                "sinds": m.get("sinds") if parse_iso(m.get("sinds")) else None,
+            }
+        )
     return {
         "app": _tekst(data.get("app"), 100),
         "gegenereerd_op": data.get("gegenereerd_op") if parse_iso(data.get("gegenereerd_op")) else None,
@@ -114,8 +119,10 @@ def normaliseer_info(data: Any) -> dict:
 
 # ---------------------------------------------------------------- HTTP
 
-def maak_client(bron, kluis: Kluis, transport: httpx.AsyncBaseTransport | None = None,
-                timeout: float = STANDAARD_TIMEOUT) -> httpx.AsyncClient:
+
+def maak_client(
+    bron, kluis: Kluis, transport: httpx.AsyncBaseTransport | None = None, timeout: float = STANDAARD_TIMEOUT
+) -> httpx.AsyncClient:
     sleutel = kluis.ontsleutel(bron["sleutel_versleuteld"])
     verify: Any = True
     if bron["ca_pem"]:
@@ -124,8 +131,7 @@ def maak_client(bron, kluis: Kluis, transport: httpx.AsyncBaseTransport | None =
         verify = ctx
     return httpx.AsyncClient(
         base_url=bron["basis_url"].rstrip("/") + API_PREFIX,
-        headers={"Authorization": f"Bearer {sleutel}", "Accept": "application/json",
-                 "User-Agent": "Bedrijfsdashboard"},
+        headers={"Authorization": f"Bearer {sleutel}", "Accept": "application/json", "User-Agent": "Bedrijfsdashboard"},
         timeout=timeout,
         verify=verify,
         transport=transport,
@@ -137,14 +143,14 @@ async def _get_json(client: httpx.AsyncClient, pad: str, params: dict | None = N
     try:
         resp = await client.get(pad, params=params)
     except httpx.TimeoutException:
-        raise OphaalFout(f"Time-out: geen antwoord binnen {client.timeout.read or STANDAARD_TIMEOUT:.0f} s")
+        raise OphaalFout(f"Time-out: geen antwoord binnen {client.timeout.read or STANDAARD_TIMEOUT:.0f} s") from None
     except httpx.ConnectError as exc:
         tekst = str(exc)
         if "CERTIFICATE" in tekst.upper() or "SSL" in tekst.upper():
-            raise OphaalFout("TLS-certificaat niet vertrouwd (stel eventueel een eigen CA (PEM) in)")
-        raise OphaalFout(f"Verbinding mislukt: {tekst or exc.__class__.__name__}")
+            raise OphaalFout("TLS-certificaat niet vertrouwd (stel eventueel een eigen CA (PEM) in)") from None
+        raise OphaalFout(f"Verbinding mislukt: {tekst or exc.__class__.__name__}") from None
     except httpx.HTTPError as exc:
-        raise OphaalFout(f"Verbindingsfout: {exc.__class__.__name__}")
+        raise OphaalFout(f"Verbindingsfout: {exc.__class__.__name__}") from None
     try:
         data = resp.json()
     except ValueError:
@@ -182,8 +188,10 @@ async def haal_dataset(bron, kluis: Kluis, naam: str, params: dict, transport=No
 
 # ---------------------------------------------------------------- ophalen + opslaan
 
-async def haal_bron_op(db: Database, kluis: Kluis, bron, transport=None,
-                       timeout: float = STANDAARD_TIMEOUT) -> str | None:
+
+async def haal_bron_op(
+    db: Database, kluis: Kluis, bron, transport=None, timeout: float = STANDAARD_TIMEOUT
+) -> str | None:
     """Haalt info+samenvatting op voor één bron en slaat het resultaat op. Geeft foutmelding of None."""
     tijdstip = iso()
     try:
@@ -210,8 +218,13 @@ async def haal_bron_op(db: Database, kluis: Kluis, bron, transport=None,
         for kpi in samenvatting["kpis"]:
             conn.execute(
                 "INSERT INTO kpi_historie (bron_id, sleutel, tijd, waarde, status) VALUES (?, ?, ?, ?, ?)",
-                (bron["id"], kpi["sleutel"], tijdstip,
-                 float(kpi["waarde"]) if kpi["waarde"] is not None else None, kpi["status"]),
+                (
+                    bron["id"],
+                    kpi["sleutel"],
+                    tijdstip,
+                    float(kpi["waarde"]) if kpi["waarde"] is not None else None,
+                    kpi["status"],
+                ),
             )
     return None
 
@@ -251,7 +264,7 @@ async def haal_alle_op(db: Database, kluis: Kluis, transport=None) -> dict[int, 
         bronnen = conn.execute("SELECT * FROM bronnen WHERE actief = 1").fetchall()
     resultaten = await asyncio.gather(*(haal_bron_op(db, kluis, b, transport) for b in bronnen))
     ruim_historie_op(db)
-    return {b["id"]: r for b, r in zip(bronnen, resultaten)}
+    return {b["id"]: r for b, r in zip(bronnen, resultaten, strict=True)}
 
 
 class Planner:
@@ -283,5 +296,5 @@ class Planner:
             self.nu_ophalen.clear()
             try:
                 await asyncio.wait_for(self.nu_ophalen.wait(), timeout=interval_minuten(self.db) * 60)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass

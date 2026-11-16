@@ -33,9 +33,17 @@ def client(app):
 
 def wizard(client, naam="beheer", ww=WACHTWOORD):
     token = csrf_uit(client.get("/welkom").text)
-    return client.post("/welkom", data={"csrf_token": token, "gebruikersnaam": naam, "wachtwoord": ww,
-                                        "wachtwoord2": ww, "bedrijfsnaam": "Testkwekerij"},
-                       follow_redirects=False)
+    return client.post(
+        "/welkom",
+        data={
+            "csrf_token": token,
+            "gebruikersnaam": naam,
+            "wachtwoord": ww,
+            "wachtwoord2": ww,
+            "bedrijfsnaam": "Testkwekerij",
+        },
+        follow_redirects=False,
+    )
 
 
 @pytest.fixture
@@ -61,6 +69,12 @@ def met_nepbron(app, nepbron):
 
 
 def voeg_bron_toe(client, sleutel=GELDIGE_SLEUTEL, url="http://scouten.lan:30092", **extra):
-    data = {"csrf_token": csrf(client), "naam": "Scouten", "app_slug": "scouten", "basis_url": url,
-            "koppelsleutel": sleutel, **extra}
+    data = {
+        "csrf_token": csrf(client),
+        "naam": "Scouten",
+        "app_slug": "scouten",
+        "basis_url": url,
+        "koppelsleutel": sleutel,
+        **extra,
+    }
     return client.post("/beheer/bronnen", data=data, follow_redirects=False)

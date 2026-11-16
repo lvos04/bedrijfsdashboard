@@ -30,9 +30,11 @@ def test_wizard_maar_een_keer(beheerder):
     assert r.status_code == 303 and r.headers["location"] == "/aanmelden"
     # Ook een directe POST maakt geen tweede beheerder aan.
     token = csrf(beheerder)
-    r = beheerder.post("/welkom", data={"csrf_token": token, "gebruikersnaam": "indringer",
-                                        "wachtwoord": WACHTWOORD, "wachtwoord2": WACHTWOORD},
-                       follow_redirects=False)
+    r = beheerder.post(
+        "/welkom",
+        data={"csrf_token": token, "gebruikersnaam": "indringer", "wachtwoord": WACHTWOORD, "wachtwoord2": WACHTWOORD},
+        follow_redirects=False,
+    )
     assert r.status_code == 303
     with beheerder.app.state.db() as conn:
         assert conn.execute("SELECT COUNT(*) FROM gebruikers").fetchone()[0] == 1
@@ -45,8 +47,9 @@ def _afmelden(client):
 
 def _aanmelden(client, naam, ww):
     token = csrf_uit(client.get("/aanmelden").text)
-    return client.post("/aanmelden", data={"csrf_token": token, "gebruikersnaam": naam, "wachtwoord": ww},
-                       follow_redirects=False)
+    return client.post(
+        "/aanmelden", data={"csrf_token": token, "gebruikersnaam": naam, "wachtwoord": ww}, follow_redirects=False
+    )
 
 
 def test_aanmelden_en_afmelden(beheerder):
@@ -68,20 +71,27 @@ def test_aanmeldbeperking(beheerder):
 
 
 def test_lezer_rol(beheerder):
-    r = beheerder.post("/beheer/gebruikers", data={"csrf_token": csrf(beheerder), "gebruikersnaam": "lezer",
-                                                   "wachtwoord": WACHTWOORD, "rol": "lezer"}, follow_redirects=False)
+    r = beheerder.post(
+        "/beheer/gebruikers",
+        data={"csrf_token": csrf(beheerder), "gebruikersnaam": "lezer", "wachtwoord": WACHTWOORD, "rol": "lezer"},
+        follow_redirects=False,
+    )
     assert r.status_code == 303
     # Te kort wachtwoord bij toevoegen wordt geweigerd
-    r = beheerder.post("/beheer/gebruikers", data={"csrf_token": csrf(beheerder), "gebruikersnaam": "x",
-                                                   "wachtwoord": "kort", "rol": "lezer"})
+    r = beheerder.post(
+        "/beheer/gebruikers",
+        data={"csrf_token": csrf(beheerder), "gebruikersnaam": "x", "wachtwoord": "kort", "rol": "lezer"},
+    )
     assert r.status_code == 422
     _afmelden(beheerder)
     assert _aanmelden(beheerder, "lezer", WACHTWOORD).status_code == 303
     assert beheerder.get("/").status_code == 200
     assert beheerder.get("/beheer").status_code == 403
     token = csrf_uit(beheerder.get("/").text)
-    r = beheerder.post("/beheer/bronnen", data={"csrf_token": token, "naam": "x", "app_slug": "x",
-                                                "basis_url": "http://x", "koppelsleutel": "bk_x"})
+    r = beheerder.post(
+        "/beheer/bronnen",
+        data={"csrf_token": token, "naam": "x", "app_slug": "x", "basis_url": "http://x", "koppelsleutel": "bk_x"},
+    )
     assert r.status_code == 403
     assert beheerder.get("/api/beheer/koppelsleutels").status_code == 403
 

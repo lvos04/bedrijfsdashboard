@@ -12,8 +12,12 @@ def _maak_sleutel(client, naam="TuinWerk OS"):
 
 
 def test_401_zonder_of_met_ongeldige_sleutel(client):
-    for kop in ({}, {"Authorization": "Bearer bk_bestaatniet"}, {"Authorization": "Basic abc"},
-                {"Authorization": "Bearer "}):
+    for kop in (
+        {},
+        {"Authorization": "Bearer bk_bestaatniet"},
+        {"Authorization": "Basic abc"},
+        {"Authorization": "Bearer "},
+    ):
         for pad in ("/info", "/samenvatting", "/datasets/bronnen"):
             r = client.get("/api/koppeling/v1" + pad, headers=kop)
             assert r.status_code == 401
@@ -56,8 +60,18 @@ def test_info_en_samenvatting(beheerder, app):
         bron_id = conn.execute("SELECT id FROM bronnen").fetchone()[0]
         conn.execute(
             "INSERT INTO bron_status (bron_id, laatste_poging, laatste_succes, samenvatting_json) VALUES (?, ?, ?, ?)",
-            (bron_id, iso(), iso(), json.dumps({"kpis": [{"sleutel": "a", "label": "A", "waarde": 1, "status": "actie"}],
-                                                "meldingen": [{"niveau": "kritiek", "tekst": "Kas te warm", "sinds": None}]})))
+            (
+                bron_id,
+                iso(),
+                iso(),
+                json.dumps(
+                    {
+                        "kpis": [{"sleutel": "a", "label": "A", "waarde": 1, "status": "actie"}],
+                        "meldingen": [{"niveau": "kritiek", "tekst": "Kas te warm", "sinds": None}],
+                    }
+                ),
+            ),
+        )
     sam = beheerder.get("/api/koppeling/v1/samenvatting", headers=kop).json()
     kpis = {k["sleutel"]: k for k in sam["kpis"]}
     assert kpis["bronnen_bereikbaar"]["waarde"] == 1 and kpis["bronnen_bereikbaar"]["status"] == "ok"
@@ -103,16 +117,20 @@ def test_sessie_geeft_geen_toegang_tot_koppel_api(beheerder):
 
 
 def test_lezer_kan_geen_sleutels_beheren(beheerder):
-    beheerder.post("/beheer/gebruikers", data={"csrf_token": csrf(beheerder), "gebruikersnaam": "lezer",
-                                               "wachtwoord": WACHTWOORD, "rol": "lezer"})
+    beheerder.post(
+        "/beheer/gebruikers",
+        data={"csrf_token": csrf(beheerder), "gebruikersnaam": "lezer", "wachtwoord": WACHTWOORD, "rol": "lezer"},
+    )
     beheerder.post("/afmelden", data={"csrf_token": csrf(beheerder)})
     beheerder.cookies.clear()
     token = csrf_uit(beheerder.get("/aanmelden").text)
     beheerder.post("/aanmelden", data={"csrf_token": token, "gebruikersnaam": "lezer", "wachtwoord": WACHTWOORD})
     token = csrf_uit(beheerder.get("/").text)
     assert beheerder.get("/api/beheer/koppelsleutels").status_code == 403
-    assert beheerder.post("/api/beheer/koppelsleutels", json={"naam": "x"},
-                          headers={"X-CSRF-Token": token}).status_code == 403
+    assert (
+        beheerder.post("/api/beheer/koppelsleutels", json={"naam": "x"}, headers={"X-CSRF-Token": token}).status_code
+        == 403
+    )
     assert beheerder.post("/beheer/koppelsleutels", data={"csrf_token": token, "naam": "x"}).status_code == 403
     assert beheerder.delete("/api/beheer/koppelsleutels/1", headers={"X-CSRF-Token": token}).status_code == 403
 

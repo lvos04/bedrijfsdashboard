@@ -22,6 +22,7 @@ LIMIET_PER_MINUUT = 120
 
 # ---------------------------------------------------------------- sleutelbeheer
 
+
 def maak_sleutel(conn, naam: str, door: str | None) -> tuple[int, str]:
     sleutel = "bk_" + secrets.token_urlsafe(32)
     cur = conn.execute(
@@ -32,10 +33,13 @@ def maak_sleutel(conn, naam: str, door: str | None) -> tuple[int, str]:
 
 
 def lijst_sleutels(conn) -> list[dict]:
-    return [dict(r) for r in conn.execute(
-        "SELECT id, naam, voorvoegsel, aangemaakt_op, aangemaakt_door, laatst_gebruikt_op, ingetrokken_op "
-        "FROM koppelsleutels ORDER BY id DESC"
-    )]
+    return [
+        dict(r)
+        for r in conn.execute(
+            "SELECT id, naam, voorvoegsel, aangemaakt_op, aangemaakt_door, laatst_gebruikt_op, ingetrokken_op "
+            "FROM koppelsleutels ORDER BY id DESC"
+        )
+    ]
 
 
 def trek_in(conn, sleutel_id: int) -> bool:
@@ -86,6 +90,7 @@ def _authenticeer(request: Request) -> int | JSONResponse:
 
 # ---------------------------------------------------------------- gegevens
 
+
 def samenvatting(db) -> dict:
     lijst = overzicht.bronnen(db)
     totaal = len(lijst)
@@ -100,25 +105,51 @@ def samenvatting(db) -> dict:
         return "onbekend" if not met_gegevens else ("ok" if aantal == 0 else bij_meer)
 
     kpis = [
-        {"sleutel": "bronnen_bereikbaar", "label": "Bronnen bereikbaar",
-         "waarde": bereikbaar if totaal else None, "eenheid": None,
-         "status": "onbekend" if not totaal else ("ok" if bereikbaar == totaal else ("actie" if bereikbaar == 0 else "let_op")),
-         "toelichting": f"van {totaal} gekoppelde apps" if totaal else "nog geen bronnen gekoppeld"},
-        {"sleutel": "kritieke_meldingen", "label": "Kritieke meldingen",
-         "waarde": kritiek if met_gegevens else None, "eenheid": None, "status": st(kritiek, "actie"),
-         "toelichting": None},
-        {"sleutel": "waarschuwingen", "label": "Waarschuwingen",
-         "waarde": waarschuwing if met_gegevens else None, "eenheid": None, "status": st(waarschuwing, "let_op"),
-         "toelichting": None},
-        {"sleutel": "kpis_actie", "label": "KPI's met actie nodig",
-         "waarde": kpi_actie if met_gegevens else None, "eenheid": None, "status": st(kpi_actie, "actie"),
-         "toelichting": None},
+        {
+            "sleutel": "bronnen_bereikbaar",
+            "label": "Bronnen bereikbaar",
+            "waarde": bereikbaar if totaal else None,
+            "eenheid": None,
+            "status": "onbekend"
+            if not totaal
+            else ("ok" if bereikbaar == totaal else ("actie" if bereikbaar == 0 else "let_op")),
+            "toelichting": f"van {totaal} gekoppelde apps" if totaal else "nog geen bronnen gekoppeld",
+        },
+        {
+            "sleutel": "kritieke_meldingen",
+            "label": "Kritieke meldingen",
+            "waarde": kritiek if met_gegevens else None,
+            "eenheid": None,
+            "status": st(kritiek, "actie"),
+            "toelichting": None,
+        },
+        {
+            "sleutel": "waarschuwingen",
+            "label": "Waarschuwingen",
+            "waarde": waarschuwing if met_gegevens else None,
+            "eenheid": None,
+            "status": st(waarschuwing, "let_op"),
+            "toelichting": None,
+        },
+        {
+            "sleutel": "kpis_actie",
+            "label": "KPI's met actie nodig",
+            "waarde": kpi_actie if met_gegevens else None,
+            "eenheid": None,
+            "status": st(kpi_actie, "actie"),
+            "toelichting": None,
+        },
     ]
     uit_meldingen = []
     for b in lijst:
         if b["fout"]:
-            uit_meldingen.append({"niveau": "waarschuwing", "tekst": f"{b['naam']}: niet bereikbaar ({b['fout']})",
-                                  "sinds": b["fout_sinds"]})
+            uit_meldingen.append(
+                {
+                    "niveau": "waarschuwing",
+                    "tekst": f"{b['naam']}: niet bereikbaar ({b['fout']})",
+                    "sinds": b["fout_sinds"],
+                }
+            )
     for m in meldingen:
         tekst = f"{m['bron_naam']}: {m['tekst']}" + (" (verouderd)" if m["verouderd"] else "")
         uit_meldingen.append({"niveau": m["niveau"], "tekst": tekst, "sinds": m["sinds"]})
@@ -128,24 +159,53 @@ def samenvatting(db) -> dict:
 def _dataset_items(db, naam: str) -> list[dict]:
     lijst = overzicht.bronnen(db)
     if naam == "bronnen":
-        return [{"id": b["id"], "naam": b["naam"], "app": b["app_slug"], "bereikbaar": b["bereikbaar"],
-                 "verouderd": b["verouderd"], "laatste_succes": b["laatste_succes"], "fout": b["fout"],
-                 "bijgewerkt_op": b["laatste_poging"]} for b in lijst]
+        return [
+            {
+                "id": b["id"],
+                "naam": b["naam"],
+                "app": b["app_slug"],
+                "bereikbaar": b["bereikbaar"],
+                "verouderd": b["verouderd"],
+                "laatste_succes": b["laatste_succes"],
+                "fout": b["fout"],
+                "bijgewerkt_op": b["laatste_poging"],
+            }
+            for b in lijst
+        ]
     if naam == "kpis":
         items = []
         for b in lijst:
             for k in (b["samenvatting"] or {}).get("kpis", []):
-                items.append({"id": f"{b['id']}:{k['sleutel']}", "bron_id": b["id"], "app": b["app_slug"],
-                              "sleutel": k["sleutel"], "label": k["label"], "waarde": k["waarde"],
-                              "eenheid": k["eenheid"], "status": k["status"], "verouderd": b["verouderd"],
-                              "bijgewerkt_op": b["laatste_succes"]})
+                items.append(
+                    {
+                        "id": f"{b['id']}:{k['sleutel']}",
+                        "bron_id": b["id"],
+                        "app": b["app_slug"],
+                        "sleutel": k["sleutel"],
+                        "label": k["label"],
+                        "waarde": k["waarde"],
+                        "eenheid": k["eenheid"],
+                        "status": k["status"],
+                        "verouderd": b["verouderd"],
+                        "bijgewerkt_op": b["laatste_succes"],
+                    }
+                )
         return items
     items = []
     for m in overzicht.gebundelde_meldingen(lijst):
         ident = sha256(f"{m['bron_id']}|{m['niveau']}|{m['tekst']}|{m['sinds']}")[:16]
-        items.append({"id": ident, "bron_id": m["bron_id"], "app": m["app"], "niveau": m["niveau"],
-                      "tekst": m["tekst"], "sinds": m["sinds"], "verouderd": m["verouderd"],
-                      "bijgewerkt_op": m["sinds"]})
+        items.append(
+            {
+                "id": ident,
+                "bron_id": m["bron_id"],
+                "app": m["app"],
+                "niveau": m["niveau"],
+                "tekst": m["tekst"],
+                "sinds": m["sinds"],
+                "verouderd": m["verouderd"],
+                "bijgewerkt_op": m["sinds"],
+            }
+        )
     return items
 
 
@@ -177,8 +237,15 @@ def info(request: Request):
     if isinstance(auth, JSONResponse):
         return auth
     db = request.app.state.db
-    return {"app": APP_SLUG, "naam": "Bedrijfsdashboard", "versie": __version__, "api_versie": "1",
-            "bedrijf": db.instelling("bedrijfsnaam") or None, "datasets": DATASETS, "tijd": iso()}
+    return {
+        "app": APP_SLUG,
+        "naam": "Bedrijfsdashboard",
+        "versie": __version__,
+        "api_versie": "1",
+        "bedrijf": db.instelling("bedrijfsnaam") or None,
+        "datasets": DATASETS,
+        "tijd": iso(),
+    }
 
 
 @router.get("/samenvatting")
@@ -190,8 +257,13 @@ def samenvatting_route(request: Request):
 
 
 @router.get("/datasets/{naam}")
-def dataset(request: Request, naam: str, sinds: str | None = Query(None),
-            limiet: int = Query(100, ge=1, le=500), cursor: str | None = Query(None)):
+def dataset(
+    request: Request,
+    naam: str,
+    sinds: str | None = Query(None),
+    limiet: int = Query(100, ge=1, le=500),
+    cursor: str | None = Query(None),
+):
     auth = _authenticeer(request)
     if isinstance(auth, JSONResponse):
         return auth
@@ -209,6 +281,6 @@ def dataset(request: Request, naam: str, sinds: str | None = Query(None),
     if sinds_dt is not None:
         items = [i for i in items if (d := parse_iso(i.get("bijgewerkt_op"))) is not None and d >= sinds_dt]
     items.sort(key=lambda i: i["id"])
-    pagina = items[offset:offset + limiet]
+    pagina = items[offset : offset + limiet]
     volgende = _offset_naar_cursor(offset + limiet) if offset + limiet < len(items) else None
     return {"app": APP_SLUG, "dataset": naam, "gegenereerd_op": iso(), "items": pagina, "volgende_cursor": volgende}

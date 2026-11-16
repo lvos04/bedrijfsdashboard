@@ -12,12 +12,30 @@ def maak_nepbron(slug: str = "scouten", sleutel: str = GELDIGE_SLEUTEL) -> FastA
     app = FastAPI()
     app.state.status = 200
     app.state.kpis = [
-        {"sleutel": "open_waarnemingen", "label": "Open waarnemingen", "waarde": 7, "eenheid": None,
-         "status": "let_op", "toelichting": "2 met hoge druk"},
-        {"sleutel": "gemiddeld_gewicht", "label": "Gemiddeld gewicht", "waarde": "12.50", "eenheid": "g",
-         "status": "ok", "toelichting": None},
-        {"sleutel": "onbekend", "label": "Nog niet berekend", "waarde": None, "eenheid": None,
-         "status": "raar", "toelichting": None},
+        {
+            "sleutel": "open_waarnemingen",
+            "label": "Open waarnemingen",
+            "waarde": 7,
+            "eenheid": None,
+            "status": "let_op",
+            "toelichting": "2 met hoge druk",
+        },
+        {
+            "sleutel": "gemiddeld_gewicht",
+            "label": "Gemiddeld gewicht",
+            "waarde": "12.50",
+            "eenheid": "g",
+            "status": "ok",
+            "toelichting": None,
+        },
+        {
+            "sleutel": "onbekend",
+            "label": "Nog niet berekend",
+            "waarde": None,
+            "eenheid": None,
+            "status": "raar",
+            "toelichting": None,
+        },
     ]
     app.state.meldingen = [
         {"niveau": "kritiek", "tekst": "Trips boven drempel in afdeling 3", "sinds": "2026-11-15T08:00:00Z"},
@@ -37,15 +55,26 @@ def maak_nepbron(slug: str = "scouten", sleutel: str = GELDIGE_SLEUTEL) -> FastA
     def info(request: Request):
         if (r := _auth(request)) is not None:
             return r
-        return {"app": slug, "naam": "Scouten", "versie": "1.2.3", "api_versie": "1", "bedrijf": "Testkwekerij",
-                "datasets": ["waarnemingen"], "tijd": "2026-11-16T15:00:00Z"}
+        return {
+            "app": slug,
+            "naam": "Scouten",
+            "versie": "1.2.3",
+            "api_versie": "1",
+            "bedrijf": "Testkwekerij",
+            "datasets": ["waarnemingen"],
+            "tijd": "2026-11-16T15:00:00Z",
+        }
 
     @app.get("/api/koppeling/v1/samenvatting")
     def samenvatting(request: Request):
         if (r := _auth(request)) is not None:
             return r
-        return {"app": slug, "gegenereerd_op": "2026-11-16T15:00:00Z", "kpis": app.state.kpis,
-                "meldingen": app.state.meldingen}
+        return {
+            "app": slug,
+            "gegenereerd_op": "2026-11-16T15:00:00Z",
+            "kpis": app.state.kpis,
+            "meldingen": app.state.meldingen,
+        }
 
     @app.get("/api/koppeling/v1/datasets/{naam}")
     def dataset(request: Request, naam: str, limiet: int = 100):
@@ -53,9 +82,15 @@ def maak_nepbron(slug: str = "scouten", sleutel: str = GELDIGE_SLEUTEL) -> FastA
             return r
         if naam != "waarnemingen":
             return JSONResponse({"fout": "onbekende_dataset"}, status_code=404)
-        items = [{"id": i, "plaag": "trips", "aantal": i * 2, "bijgewerkt_op": "2026-11-16T10:00:00Z"}
-                 for i in range(1, 6)][:limiet]
-        return {"app": slug, "dataset": naam, "gegenereerd_op": "2026-11-16T15:00:00Z", "items": items,
-                "volgende_cursor": None}
+        items = [
+            {"id": i, "plaag": "trips", "aantal": i * 2, "bijgewerkt_op": "2026-11-16T10:00:00Z"} for i in range(1, 6)
+        ][:limiet]
+        return {
+            "app": slug,
+            "dataset": naam,
+            "gegenereerd_op": "2026-11-16T15:00:00Z",
+            "items": items,
+            "volgende_cursor": None,
+        }
 
     return app

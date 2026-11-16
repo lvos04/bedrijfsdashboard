@@ -72,8 +72,9 @@ def gebundelde_meldingen(lijst: list[dict]) -> list[dict]:
     uit = []
     for b in lijst:
         for m in (b["samenvatting"] or {}).get("meldingen", []):
-            uit.append({**m, "bron_id": b["id"], "bron_naam": b["naam"], "app": b["app_slug"],
-                        "verouderd": b["verouderd"]})
+            uit.append(
+                {**m, "bron_id": b["id"], "bron_naam": b["naam"], "app": b["app_slug"], "verouderd": b["verouderd"]}
+            )
     uit.sort(key=lambda m: m["sinds"] or "", reverse=True)
     uit.sort(key=lambda m: NIVEAU_VOLGORDE.get(m["niveau"], 9))
     return uit
@@ -93,8 +94,7 @@ def kpi_historie(db: Database, bron_id: int, dagen: int = 90) -> dict[str, list[
     return uit
 
 
-def sparkline(punten: list[tuple[str, float | None]], breedte: int = 160, hoogte: int = 36,
-              label: str = "") -> Markup:
+def sparkline(punten: list[tuple[str, float | None]], breedte: int = 160, hoogte: int = 36, label: str = "") -> Markup:
     """Kleine inline SVG; ontbrekende waarden onderbreken de lijn (er wordt niets geïnterpoleerd)."""
     waarden = [w for _, w in punten if w is not None]
     if len(waarden) < 2:
@@ -117,7 +117,8 @@ def sparkline(punten: list[tuple[str, float | None]], breedte: int = 160, hoogte
     lijnen = "".join(
         f'<polyline points="{" ".join(s)}" fill="none" stroke="currentColor" stroke-width="1.75" '
         f'stroke-linejoin="round" stroke-linecap="round"/>'
-        for s in segmenten if len(s) >= 2
+        for s in segmenten
+        if len(s) >= 2
     )
     punt = f'<circle cx="{laatste[0]:.1f}" cy="{laatste[1]:.1f}" r="2.5" fill="currentColor"/>' if laatste else ""
     titel = escape(f"{label}: min {_fmt(lo)}, max {_fmt(hi)}, {len(waarden)} metingen")

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime
 import secrets
 import ssl
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -79,6 +79,7 @@ class GeenRechten(Exception):
 
 # ---------------------------------------------------------------- hulpfuncties
 
+
 def _gebruiker(request: Request):
     if not hasattr(request.state, "sessie"):
         with request.app.state.db() as conn:
@@ -132,8 +133,15 @@ def _client_ip(request: Request) -> str:
 def _zet_sessiecookie(request: Request, response: Response, token: str) -> None:
     cfg: Config = request.app.state.config
     secure = is_https(request) if cfg.cookie_secure == "auto" else cfg.cookie_secure in ("1", "true", "ja")
-    response.set_cookie(SESSIE_COOKIE, token, max_age=int(SESSIE_DUUR.total_seconds()), httponly=True,
-                        secure=secure, samesite="lax", path="/")
+    response.set_cookie(
+        SESSIE_COOKIE,
+        token,
+        max_age=int(SESSIE_DUUR.total_seconds()),
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        path="/",
+    )
 
 
 def valideer_url(url: str) -> str | None:
@@ -156,6 +164,7 @@ def valideer_ca(pem: str) -> str | None:
 
 
 # ---------------------------------------------------------------- app-fabriek
+
 
 def create_app(config: Config | None = None) -> FastAPI:
     cfg = config or laad_config()
@@ -181,8 +190,14 @@ def create_app(config: Config | None = None) -> FastAPI:
         ) from exc
     migreer(cfg.db_pad)
 
-    app = FastAPI(title="Bedrijfsdashboard", version=__version__, lifespan=lifespan,
-                  docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(
+        title="Bedrijfsdashboard",
+        version=__version__,
+        lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
     app.state.config = cfg
     app.state.db = Database(cfg.db_pad)
     app.state.kluis = Kluis(cfg.sleutel_pad)
@@ -193,8 +208,11 @@ def create_app(config: Config | None = None) -> FastAPI:
 
     templates = Jinja2Templates(directory=str(HIER / "templates"))
     templates.env.globals.update(
-        leesbaar=leesbaar, getal=overzicht.formatteer_getal, status_label=overzicht.STATUS_LABEL,
-        versie=__version__, bekende_apps=BEKENDE_APPS,
+        leesbaar=leesbaar,
+        getal=overzicht.formatteer_getal,
+        status_label=overzicht.STATUS_LABEL,
+        versie=__version__,
+        bekende_apps=BEKENDE_APPS,
     )
     app.mount("/static", StaticFiles(directory=str(HIER / "static")), name="static")
     app.include_router(koppeling.router)
@@ -206,9 +224,14 @@ def create_app(config: Config | None = None) -> FastAPI:
             pre_token = request.cookies.get(PRE_CSRF_COOKIE) or secrets.token_urlsafe(32)
         melding = MELDINGEN.get(request.query_params.get("m", ""))
         resp = templates.TemplateResponse(
-            request, sjabloon,
-            {"gebruiker": sessie, "csrf_token": sessie["csrf_token"] if sessie else pre_token,
-             "melding": melding, **ctx},
+            request,
+            sjabloon,
+            {
+                "gebruiker": sessie,
+                "csrf_token": sessie["csrf_token"] if sessie else pre_token,
+                "melding": melding,
+                **ctx,
+            },
             status_code=status_code,
         )
         if pre_token and request.cookies.get(PRE_CSRF_COOKIE) != pre_token:
@@ -237,8 +260,13 @@ def create_app(config: Config | None = None) -> FastAPI:
     async def _geen_rechten(request: Request, exc: GeenRechten):
         if request.url.path.startswith("/api/"):
             return JSONResponse({"fout": "geen_rechten"}, status_code=403)
-        return render(request, "fout.html", status_code=403, titel="Geen toegang",
-                      tekst="Alleen beheerders hebben toegang tot deze pagina.")
+        return render(
+            request,
+            "fout.html",
+            status_code=403,
+            titel="Geen toegang",
+            tekst="Alleen beheerders hebben toegang tot deze pagina.",
+        )
 
     @app.middleware("http")
     async def _beveiligingskoppen(request: Request, call_next):
@@ -286,7 +314,9 @@ def create_app(config: Config | None = None) -> FastAPI:
                 (naam, hash_wachtwoord(ww), iso()),
             )
             if bedrijf:
-                conn.execute("INSERT OR REPLACE INTO instellingen (sleutel, waarde) VALUES ('bedrijfsnaam', ?)", (bedrijf,))
+                conn.execute(
+                    "INSERT OR REPLACE INTO instellingen (sleutel, waarde) VALUES ('bedrijfsnaam', ?)", (bedrijf,)
+                )
             token = maak_sessie(conn, cur.lastrowid)
         resp = RedirectResponse("/beheer", status_code=303)
         _zet_sessiecookie(request, resp, token)
@@ -309,14 +339,26 @@ def create_app(config: Config | None = None) -> FastAPI:
         beperking: AanmeldBeperking = app.state.aanmeldbeperking
         sleutels = (f"ip:{_client_ip(request)}", f"naam:{naam.lower()}")
         if beperking.geblokkeerd(*sleutels):
-            return render(request, "aanmelden.html", status_code=429, gebruikersnaam=naam,
-                          fout="Te veel mislukte pogingen. Probeer het over 15 minuten opnieuw.")
+            return render(
+                request,
+                "aanmelden.html",
+                status_code=429,
+                gebruikersnaam=naam,
+                fout="Te veel mislukte pogingen. Probeer het over 15 minuten opnieuw.",
+            )
         with app.state.db() as conn:
-            rij = conn.execute("SELECT id, wachtwoord_hash FROM gebruikers WHERE gebruikersnaam = ?", (naam,)).fetchone()
+            rij = conn.execute(
+                "SELECT id, wachtwoord_hash FROM gebruikers WHERE gebruikersnaam = ?", (naam,)
+            ).fetchone()
         if not controleer_wachtwoord(rij["wachtwoord_hash"] if rij else None, ww if isinstance(ww, str) else ""):
             beperking.fout(*sleutels)
-            return render(request, "aanmelden.html", status_code=401, gebruikersnaam=naam,
-                          fout="Onjuiste gebruikersnaam of wachtwoord.")
+            return render(
+                request,
+                "aanmelden.html",
+                status_code=401,
+                gebruikersnaam=naam,
+                fout="Onjuiste gebruikersnaam of wachtwoord.",
+            )
         beperking.reset(*sleutels)
         with app.state.db() as conn:
             token = maak_sessie(conn, rij["id"])
@@ -344,7 +386,9 @@ def create_app(config: Config | None = None) -> FastAPI:
         lijst = overzicht.bronnen(app.state.db)
         meldingen = overzicht.gebundelde_meldingen(lijst)
         return render(
-            request, "overzicht.html", bronnen=lijst,
+            request,
+            "overzicht.html",
+            bronnen=lijst,
             kritiek=[m for m in meldingen if m["niveau"] == "kritiek"],
             waarschuwingen=[m for m in meldingen if m["niveau"] == "waarschuwing"],
             info_meldingen=[m for m in meldingen if m["niveau"] == "info"],
@@ -365,8 +409,14 @@ def create_app(config: Config | None = None) -> FastAPI:
         b = _bron_of_404(bron_id)
         historie = overzicht.kpi_historie(app.state.db, bron_id, historie_dagen(app.state.db))
         sparklines = {s: overzicht.sparkline(p, label=s) for s, p in historie.items()}
-        return render(request, "bron.html", bron=b, sparklines=sparklines,
-                      meldingen=overzicht.gebundelde_meldingen([b]), dagen=historie_dagen(app.state.db))
+        return render(
+            request,
+            "bron.html",
+            bron=b,
+            sparklines=sparklines,
+            meldingen=overzicht.gebundelde_meldingen([b]),
+            dagen=historie_dagen(app.state.db),
+        )
 
     def _ruwe_bron(bron_id: int):
         with app.state.db() as conn:
@@ -386,7 +436,7 @@ def create_app(config: Config | None = None) -> FastAPI:
             try:
                 dt = datetime.fromisoformat(params["sinds"].replace("Z", "+00:00"))
             except ValueError:
-                raise OphaalFout("Ongeldige waarde voor 'sinds'", 422)
+                raise OphaalFout("Ongeldige waarde voor 'sinds'", 422) from None
             params["sinds"] = iso(dt if dt.tzinfo else dt.astimezone())
         return params
 
@@ -433,21 +483,39 @@ def create_app(config: Config | None = None) -> FastAPI:
             for item in data["items"]:
                 if isinstance(item, dict):
                     rijen.append([_cel(item.get(k)) for k in kolommen])
-        return render(request, "dataset.html", bron=b, naam=naam, fout=fout, kolommen=kolommen, rijen=rijen,
-                      volgende_cursor=(data or {}).get("volgende_cursor"), params=params,
-                      sinds_invoer=request.query_params.get("sinds", "")[:16])
+        return render(
+            request,
+            "dataset.html",
+            bron=b,
+            naam=naam,
+            fout=fout,
+            kolommen=kolommen,
+            rijen=rijen,
+            volgende_cursor=(data or {}).get("volgende_cursor"),
+            params=params,
+            sinds_invoer=request.query_params.get("sinds", "")[:16],
+        )
 
     # ------------------------------------------------------------ beheer
 
     def _beheer_ctx() -> dict:
         db = app.state.db
         with db() as conn:
-            gebruikers = [dict(r) for r in conn.execute(
-                "SELECT id, gebruikersnaam, rol, aangemaakt_op FROM gebruikers ORDER BY gebruikersnaam COLLATE NOCASE")]
+            gebruikers = [
+                dict(r)
+                for r in conn.execute(
+                    "SELECT id, gebruikersnaam, rol, aangemaakt_op FROM gebruikers ORDER BY gebruikersnaam COLLATE NOCASE"
+                )
+            ]
             sleutels = koppeling.lijst_sleutels(conn)
-        return {"bronnen": overzicht.bronnen(db, alleen_actief=False), "gebruikers": gebruikers,
-                "koppelsleutels": sleutels, "interval": interval_minuten(db), "historie_dagen": historie_dagen(db),
-                "bedrijfsnaam": db.instelling("bedrijfsnaam") or ""}
+        return {
+            "bronnen": overzicht.bronnen(db, alleen_actief=False),
+            "gebruikers": gebruikers,
+            "koppelsleutels": sleutels,
+            "interval": interval_minuten(db),
+            "historie_dagen": historie_dagen(db),
+            "bedrijfsnaam": db.instelling("bedrijfsnaam") or "",
+        }
 
     @app.get("/beheer", response_class=HTMLResponse)
     def beheer(request: Request):
@@ -471,8 +539,13 @@ def create_app(config: Config | None = None) -> FastAPI:
             if not (1 <= interval <= 1440 and 1 <= dagen <= 3650):
                 raise ValueError
         except ValueError:
-            return render(request, "beheer.html", status_code=422, **_beheer_ctx(),
-                          fout="Interval moet 1–1440 minuten zijn en historie 1–3650 dagen.")
+            return render(
+                request,
+                "beheer.html",
+                status_code=422,
+                **_beheer_ctx(),
+                fout="Interval moet 1–1440 minuten zijn en historie 1–3650 dagen.",
+            )
         db = app.state.db
         db.zet_instelling("interval_minuten", str(interval))
         db.zet_instelling("historie_dagen", str(dagen))
@@ -533,16 +606,27 @@ def create_app(config: Config | None = None) -> FastAPI:
                 cur = conn.execute(
                     "INSERT INTO bronnen (naam, app_slug, basis_url, sleutel_versleuteld, sleutel_voorvoegsel, ca_pem, "
                     "actief, aangemaakt_op) VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
-                    (waarden["naam"], waarden["app_slug"], waarden["basis_url"], kluis.versleutel(sleutel),
-                     sleutel[:8], ca_pem or None, iso()),
+                    (
+                        waarden["naam"],
+                        waarden["app_slug"],
+                        waarden["basis_url"],
+                        kluis.versleutel(sleutel),
+                        sleutel[:8],
+                        ca_pem or None,
+                        iso(),
+                    ),
                 )
                 bron_id = cur.lastrowid
             else:
-                conn.execute("UPDATE bronnen SET naam = ?, app_slug = ?, basis_url = ?, actief = ? WHERE id = ?",
-                             (waarden["naam"], waarden["app_slug"], waarden["basis_url"], int(waarden["actief"]), bron_id))
+                conn.execute(
+                    "UPDATE bronnen SET naam = ?, app_slug = ?, basis_url = ?, actief = ? WHERE id = ?",
+                    (waarden["naam"], waarden["app_slug"], waarden["basis_url"], int(waarden["actief"]), bron_id),
+                )
                 if sleutel:
-                    conn.execute("UPDATE bronnen SET sleutel_versleuteld = ?, sleutel_voorvoegsel = ? WHERE id = ?",
-                                 (kluis.versleutel(sleutel), sleutel[:8], bron_id))
+                    conn.execute(
+                        "UPDATE bronnen SET sleutel_versleuteld = ?, sleutel_voorvoegsel = ? WHERE id = ?",
+                        (kluis.versleutel(sleutel), sleutel[:8], bron_id),
+                    )
                 if ca_pem:
                     conn.execute("UPDATE bronnen SET ca_pem = ? WHERE id = ?", (ca_pem, bron_id))
                 elif ca_wissen:
@@ -602,7 +686,8 @@ def create_app(config: Config | None = None) -> FastAPI:
                 else:
                     conn.execute(
                         "INSERT INTO gebruikers (gebruikersnaam, wachtwoord_hash, rol, aangemaakt_op) VALUES (?, ?, ?, ?)",
-                        (naam, hash_wachtwoord(ww), rol, iso()))
+                        (naam, hash_wachtwoord(ww), rol, iso()),
+                    )
         if fout:
             return render(request, "beheer.html", status_code=422, fout=fout, **_beheer_ctx())
         return RedirectResponse("/beheer?m=gebruiker_toegevoegd", status_code=303)
@@ -612,7 +697,9 @@ def create_app(config: Config | None = None) -> FastAPI:
         sessie = vereis_beheerder(request)
         await controleer_post(request)
         if gebruiker_id == sessie["id"]:
-            return render(request, "beheer.html", status_code=422, fout="U kunt uzelf niet verwijderen.", **_beheer_ctx())
+            return render(
+                request, "beheer.html", status_code=422, fout="U kunt uzelf niet verwijderen.", **_beheer_ctx()
+            )
         with app.state.db() as conn:
             conn.execute("DELETE FROM gebruikers WHERE id = ?", (gebruiker_id,))
         return RedirectResponse("/beheer?m=gebruiker_verwijderd", status_code=303)
@@ -625,7 +712,9 @@ def create_app(config: Config | None = None) -> FastAPI:
         form = await controleer_post(request)
         naam = _veld(form, "naam", 100)
         if not naam:
-            return render(request, "beheer.html", status_code=422, fout="Geef de koppelsleutel een naam.", **_beheer_ctx())
+            return render(
+                request, "beheer.html", status_code=422, fout="Geef de koppelsleutel een naam.", **_beheer_ctx()
+            )
         with app.state.db() as conn:
             _, sleutel = koppeling.maak_sleutel(conn, naam, sessie["gebruikersnaam"])
         return render(request, "beheer.html", nieuwe_sleutel={"naam": naam, "sleutel": sleutel}, **_beheer_ctx())
