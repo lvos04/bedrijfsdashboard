@@ -113,3 +113,7 @@ Zie ook [docs/architectuur.md](docs/architectuur.md) (opbouw, beveiliging, omgev
 * Elke push en pull request: tests en een `docker build` (`.github/workflows/ci.yml`).
 * Een push naar `main` publiceert `ghcr.io/lvos04/bedrijfsdashboard:latest`; een tag `v1.2.3` publiceert ook
   `1.2.3` en `1.2` (`.github/workflows/release.yml`).
+
+## Verbeterplan
+
+Zie [docs/verbeterplan.md](docs/verbeterplan.md) voor het geprioriteerde verbeterplan van alle bedrijfsapps.
